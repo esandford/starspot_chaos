@@ -8,6 +8,7 @@ from astropy.timeseries import LombScargle
 from scipy.stats import iqr
 from scipy.signal import argrelextrema
 from scipy.spatial.distance import chebyshev
+from pynndescent import NNDescent
 
 __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'rotated_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
 
@@ -401,7 +402,28 @@ def delayMatrix(timeSeries, tau, m):
             delayMat[:,i] = timeSeries[(i*tau): (N - (m - 1 - i)*tau)]
         return delayMat
 
+
 def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
+    """
+    Get the nearest neighbor indices  n(i, m) as defined in Cao 1997 equation 1
+    
+    Inputs:
+    delayMatrix_m : delay matrix of a time series in embedding dimension m
+
+    Returns:
+    nnI : 1D np.array, length ( N - m*tau )
+    """
+    if delayMatrix_m.ndim == 1:
+        delayMatrix_m = np.atleast_2d(delayMatrix_m).T
+
+    nEntries_mp1 = np.shape(delayMatrix_mp1)[0]
+
+    index = NNDescent(delayMatrix_m[:nEntries_mp1], metric="chebyshev")    
+    nnI =  index.neighbor_graph[0][:,1]
+
+    return nnI
+'''
+cpdef nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     """
     Get the nearest neighbor indices  n(i, m) as defined in Cao 1997 equation 1
     
@@ -412,6 +434,10 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     Returns:
     nnI : 1D np.array, length ( N - m*tau )
     """
+    cdef:
+        int nEntries, nEntries_mp1, m, i, j, nn
+        double compDist, chebyshevDist
+
     if delayMatrix_m.ndim == 1:
         nEntries = len(delayMatrix_m)
         m = 1
@@ -437,8 +463,8 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
         nnI[i] = nn
     return nnI
 
-
-def cao97(timeSeries, tau, mMax):
+'''
+cpdef cao97(timeSeries, int tau, int mMax):
     """
     Calculate arrays E1(m), E2(m) as defined in Cao 1997 equations 3 and 5, respectively. E1 should saturate if signal is
     coming from an attractor. E2, meanwhile, should always be equal to 1 if the time series is stochastic, regardless of m; if
@@ -455,6 +481,10 @@ def cao97(timeSeries, tau, mMax):
     E2 : np.array (1D, len = mMax - 1)
     
     """
+    cdef:
+        int m, i
+        double start, end
+
     # mMax - 1 because we're not bothering with m = 1
     E = np.zeros((mMax), dtype=float)
     E1 = np.zeros((mMax - 1),dtype=float)
@@ -467,24 +497,28 @@ def cao97(timeSeries, tau, mMax):
     for m in range(1,mMax+1):
         delayMat_m = delayMatrix(timeSeries, tau, m)
         delayMat_mp1 = delayMatrix(timeSeries, tau, m+1)
-
+        nEntries_mp1 = np.shape(delayMat_mp1)[0]
+    
         # find indices of nearest neighbors--this is the slowest step so far, scales as n_datapoints^2
         start = time.time()
-        nnIndices = nearestNeighborIndices(delayMat_m,delayMat_mp1)
+        nnIndices = nearestNeighborIndices(delayMat_m, delayMat_mp1)
         end = time.time()
         
-        print("time taken: {0}".format(end - start))
+        #print("time taken: {0}".format(end - start))
         
+        #print(np.shape(delayMat_m))
+        #print(np.shape(delayMat_mp1))
+        #print(nEntries_mp1)
         # calculate a[i, m] and populate E[m]
-        a = np.zeros_like(nnIndices, dtype=float)
-        for i in range(len(a)):
+        a = np.zeros(nEntries_mp1, dtype=float)
+        for i in range(nEntries_mp1):
             a[i] = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i]])/chebyshev(delayMat_m[i], delayMat_m[nnIndices[i]])
         
         E[m-1] = np.mean(a)
         
         # calculate equation 4 and populate Estar[m]
-        b = np.zeros_like(nnIndices, dtype=float)
-        for i in range(len(a)):
+        b = np.zeros(nEntries_mp1, dtype=float)
+        for i in range(nEntries_mp1):
             b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i] + m*tau])
         Estar[m-1] = np.mean(b)
     
@@ -499,7 +533,7 @@ def cao97(timeSeries, tau, mMax):
     return E1, E2
 
 
-def localDensity(rArr, delayMat):
+cpdef localDensity(rArr, delayMat):
     """
     Local density estimation of Kurths & Herzel 1987 equation 5
     
@@ -510,6 +544,10 @@ def localDensity(rArr, delayMat):
     Outputs:
     nArr : np.array of shape (N, len(rArr)), where N is the first dimension of the delay matrix
     """
+    cdef:
+        int N, i, j, rIdx
+        double r, x
+
     print("Local density estimation")
     print(np.shape(delayMat))
     N = np.shape(delayMat)[0]
@@ -535,7 +573,7 @@ def localDensity(rArr, delayMat):
 
     return nArr
 
-def Cq(rArr, timeSeries, tau, m):
+cpdef Cq(rArr, timeSeries, int tau, int m):
     """
     Calculate C0, C1, and C2 as defined in Kurths & Herzel 1987.
     
@@ -550,6 +588,10 @@ def Cq(rArr, timeSeries, tau, m):
     C1 : np.array (like rArr)
     C2 : np.array (like rArr)
     """
+    cdef:
+        int N, rIdx
+        double r, C0sum, C1prod, C2sum
+
     delayMat = delayMatrix(timeSeries, tau, m)
 
     N = np.shape(delayMat)[0]
@@ -573,7 +615,7 @@ def Cq(rArr, timeSeries, tau, m):
     
     return C0, C1, C2
 
-def direct_C2(rArr, timeSeries, tau, m):
+cpdef direct_C2(rArr, timeSeries, int tau, int m):
     """
     Calculate the correlation integral C2 directly according to Grassberger & Procaccia 1983. This really should
     not be different from the above, so hopefully should help with debugging.
@@ -587,6 +629,10 @@ def direct_C2(rArr, timeSeries, tau, m):
     Returns:
     C2 : np.array (like rArr)
     """
+    cdef:
+        int N, i, j, rIdx
+        double r, x
+
     delayMat = delayMatrix(timeSeries, tau, m)
 
     N = np.shape(delayMat)[0]
