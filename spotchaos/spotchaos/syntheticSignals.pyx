@@ -418,7 +418,7 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
 
     nEntries_mp1 = np.shape(delayMatrix_mp1)[0]
 
-    index = NNDescent(delayMatrix_m[:nEntries_mp1], metric="chebyshev")    
+    index = NNDescent(delayMatrix_m[:nEntries_mp1], n_neighbors=10, metric="chebyshev")    
     nnI =  index.neighbor_graph[0][:,1]
 
     return nnI
@@ -533,27 +533,43 @@ cpdef cao97(timeSeries, int tau, int mMax):
     return E1, E2
 
 
-cpdef localDensity(rArr, delayMat):
+def localDensity(rArr, delayMat, nNeighbors=200):
     """
     Local density estimation of Kurths & Herzel 1987 equation 5
     
     Inputs:
     rArr : 1D np.array , array of r values (distances between points) to test
     delayMat : delay matrix constructed from time series
+    nNeighbors : int, number of nearest neighbors for PyNNDescent to index
     
     Outputs:
     nArr : np.array of shape (N, len(rArr)), where N is the first dimension of the delay matrix
     """
-    cdef:
-        int N, i, j, rIdx
-        double r, x
-
-    print("Local density estimation")
-    print(np.shape(delayMat))
+    #print("Local density estimation")
+    #print(np.shape(delayMat))
+    
     N = np.shape(delayMat)[0]
 
-    nArr = np.zeros((N, len(rArr)))
+    if delayMat.ndim == 1:
+        delayMat = np.atleast_2d(delayMat).T
+
+    index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors)    
+    neighborDistances = index.neighbor_graph[1]
     
+    nArr = np.zeros((N, len(rArr)))
+
+    for i in range(N):
+        #print("i is {0}".format(i))
+        #print(neighborDistances[i])
+        for rIdx, r in enumerate(rArr):
+            withinSphere = len(neighborDistances[i][neighborDistances[i] < r])
+            if int(withinSphere) == nNeighbors:
+                #print("Warning! PyNNDescent hasn't indexed enough neighbors for accurate calculation at r = {0}".format(r))
+                break
+            else:
+                nArr[i, rIdx] = withinSphere
+
+    '''
     # this is so slow........
     for i in range(N):
         #print(i)
@@ -568,12 +584,12 @@ cpdef localDensity(rArr, delayMat):
                         pass
                     else:
                         nArr[i, rIdx] += 1.
-    
+    '''
     nArr = (1./(N-1.)) * nArr
 
     return nArr
 
-cpdef Cq(rArr, timeSeries, int tau, int m):
+def Cq(rArr, timeSeries, tau, m):
     """
     Calculate C0, C1, and C2 as defined in Kurths & Herzel 1987.
     
@@ -582,28 +598,26 @@ cpdef Cq(rArr, timeSeries, int tau, int m):
     timeSeries : np.array
     tau : int, delay time in units of time series cadence
     m : int, embedding dimension
-    
+    nNeighbors : int, number of nearest neighbors for PyNNDescent to index
+
     Outputs:
     C0 : np.array (like rArr)
     C1 : np.array (like rArr)
     C2 : np.array (like rArr)
     """
-    cdef:
-        int N, rIdx
-        double r, C0sum, C1prod, C2sum
-
+    
     delayMat = delayMatrix(timeSeries, tau, m)
 
     N = np.shape(delayMat)[0]
-    nArr = localDensity(rArr, delayMat) # shape ((N, len(rArr))
+    nArr = localDensity(rArr, delayMat, nNeighbors=N) # shape ((N, len(rArr))
     C0 = np.zeros_like(rArr) # capacity or fractal dimension
     C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
     C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
     
-    print("C array calculation")
+    #print("C array calculation")
                     
     for rIdx, r in enumerate(rArr):
-        print(rIdx)
+        #print(rIdx)
         C0sum = (1./N) * np.sum( (1./nArr[:,rIdx]) )
         C0[rIdx] = 1./C0sum
         
