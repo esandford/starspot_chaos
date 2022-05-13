@@ -559,13 +559,12 @@ def localDensity(rArr, delayMat, nNeighbors=200):
     nArr = np.zeros((N, len(rArr)))
 
     for i in range(N):
-        #print("i is {0}".format(i))
-        #print(neighborDistances[i])
         for rIdx, r in enumerate(rArr):
             withinSphere = len(neighborDistances[i][neighborDistances[i] < r])
             if int(withinSphere) == nNeighbors:
                 #print("Warning! PyNNDescent hasn't indexed enough neighbors for accurate calculation at r = {0}".format(r))
-                break
+                nArr[i, rIdx] = np.NaN
+                #break
             else:
                 nArr[i, rIdx] = withinSphere
 
@@ -609,7 +608,14 @@ def Cq(rArr, timeSeries, tau, m):
     delayMat = delayMatrix(timeSeries, tau, m)
 
     N = np.shape(delayMat)[0]
-    nArr = localDensity(rArr, delayMat, nNeighbors=N) # shape ((N, len(rArr))
+
+    # cap nNeighbors to eliminate memory pressure problem
+    if N <= 10000:
+        nNeighbors = N
+    else:
+        nNeighbors = 5000
+
+    nArr = localDensity(rArr, delayMat, nNeighbors=nNeighbors) # shape ((N, len(rArr))
     C0 = np.zeros_like(rArr) # capacity or fractal dimension
     C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
     C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
