@@ -533,7 +533,7 @@ cpdef cao97(timeSeries, int tau, int mMax):
     return E1, E2
 
 
-def localDensity(rArr, delayMat, nNeighbors=200):
+def localDensity(rArr, delayMat, nNeighbors=200, divprob=1.0, pdm=1.5):
     """
     Local density estimation of Kurths & Herzel 1987 equation 5
     
@@ -553,7 +553,7 @@ def localDensity(rArr, delayMat, nNeighbors=200):
     if delayMat.ndim == 1:
         delayMat = np.atleast_2d(delayMat).T
 
-    index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors)    
+    index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors, diversify_prob=divprob, pruning_degree_multiplier=pdm)    
     neighborDistances = index.neighbor_graph[1]
     
     nArr = np.zeros((N, len(rArr)))
@@ -584,11 +584,11 @@ def localDensity(rArr, delayMat, nNeighbors=200):
                     else:
                         nArr[i, rIdx] += 1.
     '''
-    nArr = (1./(N-1.)) * nArr
+    nArr = (1./(N)) * nArr
 
-    return nArr
+    return nArr, neighborDistances
 
-def Cq(rArr, timeSeries, tau, m):
+def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
     """
     Calculate C0, C1, and C2 as defined in Kurths & Herzel 1987.
     
@@ -598,6 +598,8 @@ def Cq(rArr, timeSeries, tau, m):
     tau : int, delay time in units of time series cadence
     m : int, embedding dimension
     nNeighbors : int, number of nearest neighbors for PyNNDescent to index
+    divprob : float between 0.0 and 1.1, the diversify_prob parameter for PyNNDescent
+    pdm : float, the pruning_degree_multiplier parameter for PyNNDescent
 
     Outputs:
     C0 : np.array (like rArr)
@@ -615,27 +617,25 @@ def Cq(rArr, timeSeries, tau, m):
     else:
         nNeighbors = 5000
 
-    nArr = localDensity(rArr, delayMat, nNeighbors=nNeighbors) # shape ((N, len(rArr))
+    nArr, neighborDistances = localDensity(rArr, delayMat, nNeighbors=nNeighbors, divprob=divprob, pdm=pdm) # shape ((N, len(rArr))
     C0 = np.zeros_like(rArr) # capacity or fractal dimension
     C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
     C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
-    
-    #print("C array calculation")
                     
     for rIdx, r in enumerate(rArr):
         #print(rIdx)
         C0sum = (1./N) * np.sum( (1./nArr[:,rIdx]) )
         C0[rIdx] = 1./C0sum
         
-        C1prod = np.prod(nArr[:,rIdx])
-        C1[rIdx] = C1prod**(1./N)
-        
+        C1sum = np.sum(np.log(nArr[:,rIdx]))
+        C1[rIdx] = np.exp((1./N)*C1sum)
+
         C2sum = np.sum(nArr[:,rIdx])
         C2[rIdx] = (1./N)*C2sum
     
-    return C0, C1, C2
+    return C0, C1, C2#, neighborDistances
 
-cpdef direct_C2(rArr, timeSeries, int tau, int m):
+def direct_C2(rArr, timeSeries, tau, m, nNeighbors):
     """
     Calculate the correlation integral C2 directly according to Grassberger & Procaccia 1983. This really should
     not be different from the above, so hopefully should help with debugging.
@@ -649,30 +649,63 @@ cpdef direct_C2(rArr, timeSeries, int tau, int m):
     Returns:
     C2 : np.array (like rArr)
     """
-    cdef:
-        int N, i, j, rIdx
-        double r, x
 
     delayMat = delayMatrix(timeSeries, tau, m)
 
     N = np.shape(delayMat)[0]
-    
+    if delayMat.ndim == 1:
+        delayMat = np.atleast_2d(delayMat).T
+
+    index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors)    
+    neighborDistances = index.neighbor_graph[1]
+
     C2 = np.zeros_like(rArr)
     
     for i in range(N):
-        for j in range(N):
-            if j == i:
-                pass
+        for rIdx, r in enumerate(rArr):
+            withinSphere = len(neighborDistances[i][neighborDistances[i] < r])
+            if int(withinSphere) == nNeighbors:
+                #print("Warning! PyNNDescent hasn't indexed enough neighbors for accurate calculation at r = {0}".format(r))
+                C2[rIdx] = np.NaN
+                #break
             else:
-                for rIdx, r in enumerate(rArr):
-                    x = r - np.linalg.norm(delayMat[i] - delayMat[j])
-                    if x < 0:
-                        pass
-                    else:
-                        C2[rIdx] += 1.
+                C2[rIdx] += withinSphere
     
     C2 = (1./N**2) * C2
     
     return C2
 
+def brokenLine(x, x_break, b, m):
+    """
+    Broken line model:
+        y( x <= x_break) = b
+        y( x >  x_break) = m*(x - x_break) + b
+    """
+    y = np.zeros_like(x)
+    y[x <= x_break] = b
+    y[x > x_break] = m*(x[x > x_break] - x_break) + b
+    return y
+
+def brokenLine2(x, x1, x2, b, m1, m2):
+    """
+    more complicated broken line model
+        y( x <= x1) = b
+        y( x1 < x <= x2) = m1*(x - x1) + b
+        y( x > x2) = m2*(x - x2) + m1*(x2-x1) + b 
+    """
+    y = np.zeros_like(x)
+    y[x <= x1] = b
+    y[ (x > x1) & (x <= x2) ] = m1*(x[ (x > x1) & (x <= x2) ] - x1) + b
+    y[x > x2] = m2*(x[x > x2] - x2) + m1*(x2-x1) + b
+    return y
+
+def brokenLine3(x, x1, x2, b, m1, m2, m3):
+    """
+    three-segment broken line model; no flat part
+    """
+    y = np.zeros_like(x)
+    y[x <= x1] = m1*x[x <= x1] + b
+    y[ (x > x1) & (x <= x2) ] = m2*(x[ (x > x1) & (x <= x2) ] - x1) + m1*x1 + b
+    y[x > x2] = m3*(x[x > x2] - x2) + m2*(x2-x1) + m1*x1 + b
+    return y
 
