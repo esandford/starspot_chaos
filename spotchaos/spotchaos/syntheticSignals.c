@@ -2036,6 +2036,7 @@ static PyObject *__pyx_int_30;
 static PyObject *__pyx_int_100;
 static PyObject *__pyx_int_200;
 static PyObject *__pyx_int_5000;
+static PyObject *__pyx_int_10000;
 static PyObject *__pyx_int_neg_1;
 static PyObject *__pyx_int_neg_5;
 static PyObject *__pyx_codeobj_;
@@ -11432,7 +11433,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
   PyObject *__pyx_v_N = NULL;
   PyObject *__pyx_v_nNeighbors = NULL;
   PyObject *__pyx_v_nArr = NULL;
-  PyObject *__pyx_v_neighborDistances = NULL;
+  CYTHON_UNUSED PyObject *__pyx_v_neighborDistances = NULL;
   PyObject *__pyx_v_C0 = NULL;
   PyObject *__pyx_v_C1 = NULL;
   PyObject *__pyx_v_C2 = NULL;
@@ -11560,18 +11561,18 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
   /* "spotchaos/syntheticSignals.pyx":615
  * 
  *     # cap nNeighbors to eliminate memory pressure problem
- *     if N <= 5000:             # <<<<<<<<<<<<<<
+ *     if N <= 10000:             # <<<<<<<<<<<<<<
  *         nNeighbors = N
  *     else:
  */
-  __pyx_t_5 = PyObject_RichCompare(__pyx_v_N, __pyx_int_5000, Py_LE); __Pyx_XGOTREF(__pyx_t_5); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 615, __pyx_L1_error)
+  __pyx_t_5 = PyObject_RichCompare(__pyx_v_N, __pyx_int_10000, Py_LE); __Pyx_XGOTREF(__pyx_t_5); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 615, __pyx_L1_error)
   __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_t_5); if (unlikely(__pyx_t_6 < 0)) __PYX_ERR(0, 615, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   if (__pyx_t_6) {
 
     /* "spotchaos/syntheticSignals.pyx":616
  *     # cap nNeighbors to eliminate memory pressure problem
- *     if N <= 5000:
+ *     if N <= 10000:
  *         nNeighbors = N             # <<<<<<<<<<<<<<
  *     else:
  *         nNeighbors = 5000
@@ -11582,7 +11583,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
     /* "spotchaos/syntheticSignals.pyx":615
  * 
  *     # cap nNeighbors to eliminate memory pressure problem
- *     if N <= 5000:             # <<<<<<<<<<<<<<
+ *     if N <= 10000:             # <<<<<<<<<<<<<<
  *         nNeighbors = N
  *     else:
  */
@@ -12037,7 +12038,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
  *         C2sum = np.sum(nArr[:,rIdx])
  *         C2[rIdx] = (1./N)*C2sum             # <<<<<<<<<<<<<<
  * 
- *     return C0, C1, C2, neighborDistances
+ *     return C0, C1, C2#, neighborDistances
  */
     __pyx_t_11 = __Pyx_PyFloat_DivideCObj(__pyx_float_1_, __pyx_v_N, 1., 0, 1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 634, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
@@ -12061,12 +12062,12 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
   /* "spotchaos/syntheticSignals.pyx":636
  *         C2[rIdx] = (1./N)*C2sum
  * 
- *     return C0, C1, C2, neighborDistances             # <<<<<<<<<<<<<<
+ *     return C0, C1, C2#, neighborDistances             # <<<<<<<<<<<<<<
  * 
  * def direct_C2(rArr, timeSeries, tau, m, nNeighbors):
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_3 = PyTuple_New(4); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 636, __pyx_L1_error)
+  __pyx_t_3 = PyTuple_New(3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 636, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_v_C0);
   __Pyx_GIVEREF(__pyx_v_C0);
@@ -12077,9 +12078,6 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
   __Pyx_INCREF(__pyx_v_C2);
   __Pyx_GIVEREF(__pyx_v_C2);
   PyTuple_SET_ITEM(__pyx_t_3, 2, __pyx_v_C2);
-  __Pyx_INCREF(__pyx_v_neighborDistances);
-  __Pyx_GIVEREF(__pyx_v_neighborDistances);
-  PyTuple_SET_ITEM(__pyx_t_3, 3, __pyx_v_neighborDistances);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
@@ -12125,7 +12123,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_34Cq(CYTHON_UNUSED PyObj
 }
 
 /* "spotchaos/syntheticSignals.pyx":638
- *     return C0, C1, C2, neighborDistances
+ *     return C0, C1, C2#, neighborDistances
  * 
  * def direct_C2(rArr, timeSeries, tau, m, nNeighbors):             # <<<<<<<<<<<<<<
  *     """
@@ -12733,7 +12731,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_36direct_C2(CYTHON_UNUSE
   goto __pyx_L0;
 
   /* "spotchaos/syntheticSignals.pyx":638
- *     return C0, C1, C2, neighborDistances
+ *     return C0, C1, C2#, neighborDistances
  * 
  * def direct_C2(rArr, timeSeries, tau, m, nNeighbors):             # <<<<<<<<<<<<<<
  *     """
@@ -14244,7 +14242,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_codeobj__34 = (PyObject*)__Pyx_PyCode_New(6, 0, 19, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__56, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_spotchaos_syntheticSignals_pyx, __pyx_n_s_Cq, 591, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__34)) __PYX_ERR(0, 591, __pyx_L1_error)
 
   /* "spotchaos/syntheticSignals.pyx":638
- *     return C0, C1, C2, neighborDistances
+ *     return C0, C1, C2#, neighborDistances
  * 
  * def direct_C2(rArr, timeSeries, tau, m, nNeighbors):             # <<<<<<<<<<<<<<
  *     """
@@ -14328,6 +14326,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitGlobals(void) {
   __pyx_int_100 = PyInt_FromLong(100); if (unlikely(!__pyx_int_100)) __PYX_ERR(0, 1, __pyx_L1_error)
   __pyx_int_200 = PyInt_FromLong(200); if (unlikely(!__pyx_int_200)) __PYX_ERR(0, 1, __pyx_L1_error)
   __pyx_int_5000 = PyInt_FromLong(5000); if (unlikely(!__pyx_int_5000)) __PYX_ERR(0, 1, __pyx_L1_error)
+  __pyx_int_10000 = PyInt_FromLong(10000L); if (unlikely(!__pyx_int_10000)) __PYX_ERR(0, 1, __pyx_L1_error)
   __pyx_int_neg_1 = PyInt_FromLong(-1); if (unlikely(!__pyx_int_neg_1)) __PYX_ERR(0, 1, __pyx_L1_error)
   __pyx_int_neg_5 = PyInt_FromLong(-5); if (unlikely(!__pyx_int_neg_5)) __PYX_ERR(0, 1, __pyx_L1_error)
   return 0;
@@ -15040,7 +15039,7 @@ if (!__Pyx_RefNanny) {
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "spotchaos/syntheticSignals.pyx":638
- *     return C0, C1, C2, neighborDistances
+ *     return C0, C1, C2#, neighborDistances
  * 
  * def direct_C2(rArr, timeSeries, tau, m, nNeighbors):             # <<<<<<<<<<<<<<
  *     """
