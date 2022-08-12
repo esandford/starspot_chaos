@@ -6,7 +6,7 @@ import time
 from astropy.timeseries import LombScargle
 #from scipy.integrate import RK45
 from scipy.stats import iqr
-from scipy.signal import argrelextrema
+from scipy.signal import argrelextrema, savgol_filter
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
 
@@ -128,7 +128,7 @@ def Rossler_vel(t,r):
     """
     a=0.2
     b=0.2
-    c=4.8
+    c=5.7
     
     x = r[0]
     y = r[1]
@@ -158,7 +158,7 @@ def rotated_Rossler_vel(t,r):
     """
     a=0.2
     b=0.2
-    c=4.8
+    c=5.7
     
     x = r[0]
     y = r[1]
@@ -183,7 +183,7 @@ def Lorenz_FPs(sigma, beta, rho):
     For given Lorenz parameters sigma, beta, rho, return fixed points of the system
     
     Inputs:
-    sigma, beta, rho: floats, parameters of Rossler system of equations
+    sigma, beta, rho: floats, parameters of Lorenz system of equations
     
     Outputs:
     fp1 : np.array, 3D coordinates of first FP
@@ -338,7 +338,7 @@ def moving_average(a, n=3) :
     smooth = ret[n - 1:] / n
     return smooth
 
-def FS86(timeSeries, trialDelayIndices, plot=False):
+def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", level_off_criterion=0.05, plot=False):
     """
     Calculate the first local minimum of the mutual information as a function of delay time (in units of the cadence
     of the time series).
@@ -346,37 +346,148 @@ def FS86(timeSeries, trialDelayIndices, plot=False):
     Inputs:
     timeSeries (array-like): the time series on which to calculate the mutual information between pairs of delayed points
     trialDelayIndices (array-like): delay times (in units of time series cadence) to test
-    
+    method (str): global_min, 
+                  first_local_min,
+                  local_min_stop_decreasing, or 
+                  level_off_local_min (which requires additional argument level_off_criterion)
     Returns:
     MI (array-like, same shape as trialDelayIndices): each entry is the mutual information calculated at the respective
     choice of tau from trialDelayIndices
     firstLocalMinIdx (integer): index into MI of the first local minimum.
     
     """
+    
     MI = np.zeros_like(trialDelayIndices,dtype=float)
+    
     for i,tau in enumerate(trialDelayIndices):
         MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
 
-    smooth_MI = moving_average(MI)
+    length = len(timeSeries)
+    smoothing_length = 21#int(0.001*length)
+    #if smoothing_length % 2 == 0:
+    #    smoothing_length = smoothing_length - 1
+    #if smoothing_length < 11:
+    #    smoothing_length = 11
+
+    #print(smoothing_length)
+    smooth_MI = savgol_filter(MI, smoothing_length, 2)
     localMinima = argrelextrema(smooth_MI, np.less)
-    firstLocalMinIdx = localMinima[0][0]
-    
-    #check that the smoothing hasn't moved the index of the local minimum 
-    for j in np.arange(-5,5):
-        if MI[firstLocalMinIdx + j] < MI[firstLocalMinIdx]:
-            firstLocalMinIdx = firstLocalMinIdx + j
 
-    if plot is True:
-        fig, ax = plt.subplots(1,1,figsize=(8,6))
-        ax.plot(MI,'b-')
-        ax.plot(smooth_MI,'g-')
-        ax.axvline(x=firstLocalMinIdx,color='r')
-        plt.show()
+    if method=="first_local_min":
+        firstLocalMinIdx = localMinima[0][0]
+        to_return = firstLocalMinIdx
         
-        bin2D(timeSeries=timeSeries, tauIdx = firstLocalMinIdx, plotTitle="tauIdx = {0}".format(firstLocalMinIdx))
-    
-    return MI, firstLocalMinIdx
+        #check that the smoothing hasn't moved the index of the local minimum 
+        lowIdx = firstLocalMinIdx - smoothing_length
+        highIdx = firstLocalMinIdx + smoothing_length
 
+        if lowIdx < 0:
+            lowIdx = 0
+        if highIdx > len(MI):
+            highIdx = len(MI)
+
+        for j in np.arange(lowIdx,highIdx):
+            if MI[j] < MI[to_return]:
+                to_return = j
+        if plot is True:
+            fig, ax = plt.subplots(1,1,figsize=(8,6))
+            ax.plot(MI,'b-')
+            ax.plot(smooth_MI,'g-')
+            ax.axvline(x=to_return,color='r')
+            plt.show()
+            
+            bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
+
+        return MI, to_return
+
+    elif method=="global_min":
+
+        if plot is True:
+            fig, ax = plt.subplots(1,1,figsize=(8,6))
+            ax.plot(MI,'b-')
+            ax.plot(smooth_MI,'g-')
+            ax.axvline(x=np.argmin(MI),color='r')
+            plt.show()
+            
+            bin2D(timeSeries=timeSeries, tauIdx = np.argmin(MI), plotTitle="tauIdx = {0}".format(np.argmin(MI)))
+
+        return MI, np.argmin(MI)
+
+    elif method=="local_min_stop_decreasing":
+        try:
+            for j in range(len(localMinima[0])-1):
+                if MI[localMinima[0][j+1]] > MI[localMinima[0][j]]:
+                    break
+            local_min_stop_decreasing_idx = localMinima[0][j]
+        
+        except UnboundLocalError: #what happens if there are no local minima! just return the global
+            if plot is True:
+                fig, ax = plt.subplots(1,1,figsize=(8,6))
+                ax.plot(MI,'b-')
+                ax.plot(smooth_MI,'g-')
+                ax.axvline(x=np.argmin(MI),color='r')
+                plt.show()
+                
+                bin2D(timeSeries=timeSeries, tauIdx = np.argmin(MI), plotTitle="tauIdx = {0}".format(np.argmin(MI)))
+            
+            return MI, np.argmin(MI)
+
+        to_return = local_min_stop_decreasing_idx
+        #check that the smoothing hasn't moved the index of the local minimum 
+        lowIdx = local_min_stop_decreasing_idx - smoothing_length
+        highIdx = local_min_stop_decreasing_idx + smoothing_length
+
+        if lowIdx < 0:
+            lowIdx = 0
+        if highIdx > len(MI):
+            highIdx = len(MI)
+
+        for j in np.arange(lowIdx,highIdx):
+            if MI[j] < MI[to_return]:
+                to_return = j
+
+        if plot is True:
+            fig, ax = plt.subplots(1,1,figsize=(8,6))
+            ax.plot(MI,'b-')
+            ax.plot(smooth_MI,'g-')
+            ax.axvline(x=to_return,color='r')
+            plt.show()
+            
+            bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
+
+        return MI, to_return
+
+    elif method=="level_off_local_min":
+        for j in range(len(localMinima[0])-1):
+            if np.abs(MI[localMinima[0][j+1]] - MI[localMinima[0][j]]) < level_off_criterion*MI[localMinima[0][j]]:
+                break
+
+        level_off_local_min = localMinima[0][j]
+        to_return = level_off_local_min
+
+        #check that the smoothing hasn't moved the index of the local minimum 
+        lowIdx = level_off_local_min - smoothing_length
+        highIdx = level_off_local_min + smoothing_length
+
+        if lowIdx < 0:
+            lowIdx = 0
+        if highIdx > len(MI):
+            highIdx = len(MI)
+
+        for j in np.arange(lowIdx,highIdx):
+            if MI[j] < MI[to_return]:
+                to_return = j
+
+        if plot is True:
+            fig, ax = plt.subplots(1,1,figsize=(8,6))
+            ax.plot(MI,'b-')
+            ax.plot(smooth_MI,'g-')
+            ax.axvline(x=to_return,color='r')
+            plt.show()
+            
+            bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
+
+        return MI, to_return
 
 def delayMatrix(timeSeries, tau, m):
     """
@@ -419,9 +530,9 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     nEntries_mp1 = np.shape(delayMatrix_mp1)[0]
 
     index = NNDescent(delayMatrix_m[:nEntries_mp1], n_neighbors=10, metric="chebyshev")    
-    nnI =  index.neighbor_graph[0][:,1]
-
-    return nnI
+    nnI = index.neighbor_graph[0]
+    nnD = index.neighbor_graph[1] 
+    return nnI, nnD
 '''
 cpdef nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     """
@@ -501,7 +612,9 @@ cpdef cao97(timeSeries, int tau, int mMax):
     
         # find indices of nearest neighbors--this is the slowest step so far, scales as n_datapoints^2
         start = time.time()
-        nnIndices = nearestNeighborIndices(delayMat_m, delayMat_mp1)
+        nnIndices, nnDistances = nearestNeighborIndices(delayMat_m, delayMat_mp1)
+        #print(np.shape(nnIndices))
+        #print(np.shape(nnDistances))
         end = time.time()
         
         #print("time taken: {0}".format(end - start))
@@ -512,14 +625,50 @@ cpdef cao97(timeSeries, int tau, int mMax):
         # calculate a[i, m] and populate E[m]
         a = np.zeros(nEntries_mp1, dtype=float)
         for i in range(nEntries_mp1):
-            a[i] = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i]])/chebyshev(delayMat_m[i], delayMat_m[nnIndices[i]])
-        
+        #for i in range(10):
+            #print(nnIndices[i])
+            #print(nnDistances[i])
+            j = 0
+            #print("j is 0")
+            numerator = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])
+            denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+            #print(denominator)
+
+            #if the distance is zero, take the next nearest neighbor
+            #if the "nearest neighbor" is the point itself, take the next nearest neighbor
+            # (there can be multiple points with distance 0, and PyNNDescent does not
+            # necessarily sort them so that the point itself is the first entry)
+            while denominator == 0. or nnIndices[i,j] == i:
+                j+=1
+                #print("j is {0}".format(j))
+                denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+                #print(denominator)
+            
+            #print("numerator ingredients")
+            #print(delayMat_mp1[i])
+            #print(delayMat_mp1[nnIndices[i,j]])
+            #print("numerator")
+            #print(chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]]))
+            #print("denominator ingredients")
+            #print(delayMat_m[i])
+            #print(delayMat_m[nnIndices[i,j]])
+            #print("denominator")
+            #print(chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]]))
+            a[i] = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])/denominator #chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+            
+            #print("a[i]")
+            #print(a[i])
+        #print(a)
+        #fig, ax = plt.subplots(1,1,figsize=(4,3))
+        #ax.hist(a)
+        #plt.show()
+        #print(np.mean(a))
         E[m-1] = np.mean(a)
         
         # calculate equation 4 and populate Estar[m]
         b = np.zeros(nEntries_mp1, dtype=float)
         for i in range(nEntries_mp1):
-            b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i] + m*tau])
+            b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i,j] + m*tau])
         Estar[m-1] = np.mean(b)
     
     #print(E)
@@ -623,17 +772,19 @@ def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
     C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
                     
     for rIdx, r in enumerate(rArr):
-        #print(rIdx)
+        #C0 is the harmonic mean of nArr, per Kurths & Herzel 1987
         C0sum = (1./N) * np.sum( (1./nArr[:,rIdx]) )
         C0[rIdx] = 1./C0sum
         
+        #C1 is the geometric mean of nArr
         C1sum = np.sum(np.log(nArr[:,rIdx]))
         C1[rIdx] = np.exp((1./N)*C1sum)
 
+        #C2 is the arithmetic mean of nArr
         C2sum = np.sum(nArr[:,rIdx])
         C2[rIdx] = (1./N)*C2sum
     
-    return C0, C1, C2#, neighborDistances
+    return C0, C1, C2, nArr
 
 def direct_C2(rArr, timeSeries, tau, m, nNeighbors):
     """
@@ -709,3 +860,68 @@ def brokenLine3(x, x1, x2, b, m1, m2, m3):
     y[x > x2] = m3*(x[x > x2] - x2) + m2*(x2-x1) + m1*x1 + b
     return y
 
+def normal_equation(x, y, yerr, order=2):
+    """
+    Solve the normal equation B = (X.T*C.inv*X).inv*X.T*C.inv*Y
+    Inputs:
+    x = matrix of x values
+    y = vector of y values
+    yerr = vector of yerr values
+    order = integer polynomial order 
+    
+    Outputs:
+    b = vector of model parameters that minimizes chi^2
+    Bunc = covariance matrix of uncertainties on model parameters. diagonal entries are sigma**2 of the individual parameters, and off-diagonals are covariances.
+    """
+    
+    X = np.vander(x, order)
+    
+    XTX = np.dot(X.T, X/yerr[:, None]**2)
+    
+    b = np.linalg.solve(XTX, np.dot(X.T, y/yerr**2))
+    Bunc = np.linalg.solve(XTX, np.identity(order))
+    return b, Bunc
+
+# fit line to linear regime of data only
+def fitLinearRegime(rArr, nArr, C):
+    N = len(nArr[:,0])
+    medians = np.percentile(nArr, 50, axis=0)
+    
+    # uncertainty on C at each value of r will be defined as the 84th-50th percentile or the 50th-16th percentile, whichever is larger
+    Cunc_up = np.percentile(nArr, 84, axis=0) - np.percentile(nArr, 50, axis=0)
+    Cunc_down =  np.percentile(nArr, 50, axis=0) - np.percentile(nArr, 16, axis=0)
+    
+    #element-wise maximum
+    Cunc = np.maximum(Cunc_down,Cunc_up)
+    
+    # transform variables to get uncertainty in log10 space
+    Cunc_log10 = (Cunc/(np.log(10) * C))
+    
+    # exclude values of r where the median of n(r) is <= 10./N . Cutoff is a little arbitrary but the idea is that these points don't have enough neighbors.
+    enoughNeighborsIdxs = np.arange(len(rArr))[medians > 10./N]
+    firstGood = enoughNeighborsIdxs[0]
+    
+    # exclude values of r where any n(r) are NaN. The time series is not long enough to populate all the neighbors of the points.
+    anyNans = [np.any(~np.isfinite(nArr[:,i])) for i in range(len(rArr))]
+    anyNans = np.array(anyNans)
+    nansIdxs = np.arange(len(rArr))[anyNans]
+    lastGood = nansIdxs[0]
+    
+    """
+    fig, axes = plt.subplots(1,2,figsize=(16,6))
+    axes[0].errorbar(rArr[firstGood:lastGood], C[firstGood:lastGood], Cunc[firstGood:lastGood])
+    axes[0].set_xscale("log")
+    axes[0].set_yscale("log")
+    
+    axes[1].errorbar(np.log10(rArr[firstGood:lastGood]), np.log10(C[firstGood:lastGood]), Cunc_log10[firstGood:lastGood])
+    
+    axes[0].set_xlim(10**-1.5, 10**1.5)
+    axes[1].set_xlim(-1.5,1.5)
+    axes[0].set_ylim(10**-4, 10**0)
+    axes[1].set_ylim(-4,0)
+
+    plt.show()
+    """
+    
+    params, params_unc = normal_equation(x=np.log10(rArr)[firstGood:lastGood], y=np.log10(C)[firstGood:lastGood], yerr=Cunc_log10[firstGood:lastGood], order=2)
+    return params, params_unc
