@@ -10,7 +10,7 @@ from scipy.signal import argrelextrema, savgol_filter
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
 
-__all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'rotated_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
+__all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'rotated_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
 
 
 def plotTimeSeries(t, y, min_freq=None, max_freq=None, nq=None, spp=10, true_freq=None, LS_xlim=None, plot_harmonics=False, title=None):
@@ -488,6 +488,70 @@ def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", leve
             bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
 
         return MI, to_return
+
+
+def estimateQuasiPeriod(time, timeSeries, plot=False):
+    """
+    Estimate the period or cycling time of a quasi-periodic signal.
+    Make a first guess = the median interval between successive local maxima, in units of cadence
+    Then find the nearest local maximum in mutual information to that guess.
+    """
+    cadence = np.median(time[1:] - time[0:-1])
+    #print(cadence)
+    localMinima = argrelextrema(timeSeries, np.less)
+    localMaxima = argrelextrema(timeSeries, np.greater)
+    
+    localMinimaSep = time[localMinima[0][1:]] - time[localMinima[0][:-1]]
+    localMaximaSep = time[localMaxima[0][1:]] - time[localMaxima[0][:-1]]
+
+    qp_min = np.median(localMinimaSep)
+    qp_max = np.median(localMaximaSep)
+    
+    #print(qp_min)
+    #print(qp_max)
+    if plot is True:
+        fig, axes = plt.subplots(1,2, figsize=(16,6))
+        axes[0].plot(time,timeSeries,'b-')
+        """
+        for i in range(len(localMinima[0])):
+            axes[0].axvline(x=localMinima[0][i], color = 'b')
+        
+        for i in range(len(localMaxima[0])):
+            axes[0].axvline(x=localMaxima[0][i], color = 'g')
+        
+        for i in range(int(len(timeSeries)/qp)):
+            axes[0].axvline(x=timeSeries[0]+(qp*i), color='r')
+        """
+        axes[1].hist(localMinimaSep, color='b', alpha=0.5)
+        axes[1].hist(localMaximaSep, color='r', alpha=0.5)
+        
+        axes[1].axvline(qp_min, color='k')
+        
+        plt.show()
+    
+    numTrials = int(0.2*(qp_max/cadence))
+    
+    MI = np.zeros(2*numTrials)
+    trialDelayIndices = np.arange(int(qp_max/cadence) - numTrials, int(qp_max/cadence) + numTrials)
+    
+    for i,tau in enumerate(trialDelayIndices):
+        MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+
+    qp = trialDelayIndices[np.argmax(MI)]
+    #print(qp)
+    """
+    MI_long = np.zeros(1000)
+    for i,tau in enumerate(np.arange(1000)):
+        MI_long[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+    """
+    if plot is True:
+        fig, ax = plt.subplots(1,1, figsize=(8,6))
+        #ax.plot(np.arange(1000), MI_long)
+        ax.plot(trialDelayIndices, MI)
+        ax.axvline(qp)
+        plt.show()
+    
+    return qp
 
 def delayMatrix(timeSeries, tau, m):
     """
