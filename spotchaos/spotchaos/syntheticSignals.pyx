@@ -6,7 +6,7 @@ import time
 from astropy.timeseries import LombScargle
 #from scipy.integrate import RK45
 from scipy.stats import iqr
-from scipy.signal import argrelextrema, savgol_filter
+from scipy.signal import argrelextrema, savgol_filter, correlate
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
 
@@ -338,7 +338,90 @@ def moving_average(a, n=3) :
     smooth = ret[n - 1:] / n
     return smooth
 
-def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", level_off_criterion=0.05, plot=False):
+def estimateQuasiPeriod(time, timeSeries, plot=False):
+    """
+    Estimate the period or cycling time of a quasi-periodic signal.
+    Make a first guess = the median interval between successive local maxima, in units of cadence
+    Then find the nearest local maximum in mutual information to that guess.
+    """
+    cadence = np.median(time[1:] - time[0:-1])
+    #print(cadence)
+    localMinima = argrelextrema(timeSeries, np.less)
+    localMaxima = argrelextrema(timeSeries, np.greater)
+    
+    localMinimaSep = time[localMinima[0][1:]] - time[localMinima[0][:-1]]
+    localMaximaSep = time[localMaxima[0][1:]] - time[localMaxima[0][:-1]]
+
+    qp_min = np.median(localMinimaSep)
+    qp_max = np.median(localMaximaSep)
+    
+    #print(qp_min)
+    #print(qp_max)
+    """
+    if plot is True:
+        fig, axes = plt.subplots(1,2, figsize=(16,6))
+        axes[0].plot(time,timeSeries,'b-')
+        '''
+        for i in range(len(localMinima[0])):
+            axes[0].axvline(x=localMinima[0][i], color = 'b')
+        
+        for i in range(len(localMaxima[0])):
+            axes[0].axvline(x=localMaxima[0][i], color = 'g')
+        
+        for i in range(int(len(timeSeries)/qp)):
+            axes[0].axvline(x=timeSeries[0]+(qp*i), color='r')
+        '''
+        axes[1].hist(localMinimaSep, color='b', alpha=0.5)
+        axes[1].hist(localMaximaSep, color='r', alpha=0.5)
+        
+        axes[1].axvline(qp_min, color='k')
+        
+        plt.show()
+    """
+    
+    numTrials = int(0.2*(qp_max/cadence))
+    
+    MI = np.zeros(2*numTrials)
+    trialDelayIndices = np.arange(int(qp_max/cadence) - numTrials, int(qp_max/cadence) + numTrials)
+    
+    for i,tau in enumerate(trialDelayIndices):
+        MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+
+    qp = trialDelayIndices[np.argmax(MI)]
+    #print(qp)
+    """
+    MI_long = np.zeros(1000)
+    for i,tau in enumerate(np.arange(1000)):
+        MI_long[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+    """
+    #compute autocorrelation function
+    #print(np.shape(timeSeries))
+    autocorr = correlate(timeSeries, timeSeries, mode="same")
+    autocorr = autocorr[int(len(autocorr)/2):int(len(autocorr)/2)+1000]
+    autocorr = autocorr/np.max(autocorr)
+    #print(np.shape(autocorr))
+
+    #zeros of autocorrelation fn
+    ac_zeros = (np.diff(np.sign(autocorr)) != 0)*1
+
+    if plot is True:
+        fig, ax = plt.subplots(1,1, figsize=(8,6))
+        #ax.plot(np.arange(1000), MI_long)
+        ax.plot(trialDelayIndices, MI)
+        ax.plot(np.arange(1000), autocorr)
+        ax.axvline(qp,color='r')
+
+        if np.any(ac_zeros):
+            for i in range(np.sum(ac_zeros)):
+                ax.axvline(np.arange(len(ac_zeros))[ac_zeros==1][i])
+        ax.axhline(0)
+        plt.show()
+    
+    return qp
+
+
+
+def FS86(time, timeSeries, method="first_or_second_local_min", level_off_criterion=0.05, plot=False):
     """
     Calculate the first local minimum of the mutual information as a function of delay time (in units of the cadence
     of the time series).
@@ -356,16 +439,19 @@ def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", leve
     firstLocalMinIdx (integer): index into MI of the first local minimum.
     
     """
+    qp = estimateQuasiPeriod(time, timeSeries, plot=False)
     
+    trialDelayIndices = np.arange(2*qp)
+
     MI = np.zeros_like(trialDelayIndices,dtype=float)
     
     for i,tau in enumerate(trialDelayIndices):
         MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
 
     length = len(timeSeries)
-    smoothing_length = 21#int(0.001*length)
-    #if smoothing_length % 2 == 0:
-    #    smoothing_length = smoothing_length - 1
+    smoothing_length = int(qp/2)
+    if smoothing_length % 2 == 0:
+        smoothing_length = smoothing_length - 1
     #if smoothing_length < 11:
     #    smoothing_length = 11
 
@@ -389,54 +475,23 @@ def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", leve
         for j in np.arange(lowIdx,highIdx):
             if MI[j] < MI[to_return]:
                 to_return = j
-        if plot is True:
-            fig, ax = plt.subplots(1,1,figsize=(8,6))
-            ax.plot(MI,'b-')
-            ax.plot(smooth_MI,'g-')
-            ax.axvline(x=to_return,color='r')
-            plt.show()
-            
-            bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
 
-        return MI, to_return
+    elif method=="first_or_second_local_min":
+        #print(localMinima[0])
+        first_local_min = localMinima[0][0]
+        second_local_min = localMinima[0][1]
+        if MI[first_local_min] < MI[second_local_min]:
+            first_or_second = first_local_min
+        else:
+            first_or_second = second_local_min
+        #print("first_or_second is {0}".format(first_or_second))
+        to_return = first_or_second
 
-    elif method=="global_min":
-
-        if plot is True:
-            fig, ax = plt.subplots(1,1,figsize=(8,6))
-            ax.plot(MI,'b-')
-            ax.plot(smooth_MI,'g-')
-            ax.axvline(x=np.argmin(MI),color='r')
-            plt.show()
-            
-            bin2D(timeSeries=timeSeries, tauIdx = np.argmin(MI), plotTitle="tauIdx = {0}".format(np.argmin(MI)))
-
-        return MI, np.argmin(MI)
-
-    elif method=="local_min_stop_decreasing":
-        try:
-            for j in range(len(localMinima[0])-1):
-                if MI[localMinima[0][j+1]] > MI[localMinima[0][j]]:
-                    break
-            local_min_stop_decreasing_idx = localMinima[0][j]
-        
-        except UnboundLocalError: #what happens if there are no local minima! just return the global
-            if plot is True:
-                fig, ax = plt.subplots(1,1,figsize=(8,6))
-                ax.plot(MI,'b-')
-                ax.plot(smooth_MI,'g-')
-                ax.axvline(x=np.argmin(MI),color='r')
-                plt.show()
-                
-                bin2D(timeSeries=timeSeries, tauIdx = np.argmin(MI), plotTitle="tauIdx = {0}".format(np.argmin(MI)))
-            
-            return MI, np.argmin(MI)
-
-        to_return = local_min_stop_decreasing_idx
         #check that the smoothing hasn't moved the index of the local minimum 
-        lowIdx = local_min_stop_decreasing_idx - smoothing_length
-        highIdx = local_min_stop_decreasing_idx + smoothing_length
-
+        lowIdx = first_or_second - smoothing_length
+        highIdx = first_or_second + smoothing_length
+        #print("lowIdx is {0}".format(lowIdx))
+        #print("highIdx is {0}".format(highIdx))
         if lowIdx < 0:
             lowIdx = 0
         if highIdx > len(MI):
@@ -444,18 +499,35 @@ def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", leve
 
         for j in np.arange(lowIdx,highIdx):
             if MI[j] < MI[to_return]:
+                #print(j)
                 to_return = j
 
-        if plot is True:
-            fig, ax = plt.subplots(1,1,figsize=(8,6))
-            ax.plot(MI,'b-')
-            ax.plot(smooth_MI,'g-')
-            ax.axvline(x=to_return,color='r')
-            plt.show()
-            
-            bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
+    elif method=="global_min":
+        to_return = np.argmin(MI)
+        
+    elif method=="local_min_stop_decreasing":
+        try:
+            for j in range(len(localMinima[0])-1):
+                if MI[localMinima[0][j+1]] > MI[localMinima[0][j]]:
+                    break
+            local_min_stop_decreasing_idx = localMinima[0][j]
 
-        return MI, to_return
+            to_return = local_min_stop_decreasing_idx
+            #check that the smoothing hasn't moved the index of the local minimum 
+            lowIdx = local_min_stop_decreasing_idx - smoothing_length
+            highIdx = local_min_stop_decreasing_idx + smoothing_length
+
+            if lowIdx < 0:
+                lowIdx = 0
+            if highIdx > len(MI):
+                highIdx = len(MI)
+
+            for j in np.arange(lowIdx,highIdx):
+                if MI[j] < MI[to_return]:
+                    to_return = j
+        
+        except UnboundLocalError: #what happens if there are no local minima! just return the global
+            to_return = np.argmin(MI)
 
     elif method=="level_off_local_min":
         for j in range(len(localMinima[0])-1):
@@ -478,80 +550,18 @@ def FS86(timeSeries, trialDelayIndices, method="local_min_stop_decreasing", leve
             if MI[j] < MI[to_return]:
                 to_return = j
 
-        if plot is True:
-            fig, ax = plt.subplots(1,1,figsize=(8,6))
-            ax.plot(MI,'b-')
-            ax.plot(smooth_MI,'g-')
-            ax.axvline(x=to_return,color='r')
-            plt.show()
+    if plot is True:
+        fig, ax = plt.subplots(1,1,figsize=(8,6))
+        ax.plot(MI,'b-')
+        ax.plot(smooth_MI,'g-')
+        ax.axvline(x=to_return,color='r')
+        plt.show()
             
-            bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
+        bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
 
-        return MI, to_return
+    return MI, to_return
 
 
-def estimateQuasiPeriod(time, timeSeries, plot=False):
-    """
-    Estimate the period or cycling time of a quasi-periodic signal.
-    Make a first guess = the median interval between successive local maxima, in units of cadence
-    Then find the nearest local maximum in mutual information to that guess.
-    """
-    cadence = np.median(time[1:] - time[0:-1])
-    #print(cadence)
-    localMinima = argrelextrema(timeSeries, np.less)
-    localMaxima = argrelextrema(timeSeries, np.greater)
-    
-    localMinimaSep = time[localMinima[0][1:]] - time[localMinima[0][:-1]]
-    localMaximaSep = time[localMaxima[0][1:]] - time[localMaxima[0][:-1]]
-
-    qp_min = np.median(localMinimaSep)
-    qp_max = np.median(localMaximaSep)
-    
-    #print(qp_min)
-    #print(qp_max)
-    if plot is True:
-        fig, axes = plt.subplots(1,2, figsize=(16,6))
-        axes[0].plot(time,timeSeries,'b-')
-        """
-        for i in range(len(localMinima[0])):
-            axes[0].axvline(x=localMinima[0][i], color = 'b')
-        
-        for i in range(len(localMaxima[0])):
-            axes[0].axvline(x=localMaxima[0][i], color = 'g')
-        
-        for i in range(int(len(timeSeries)/qp)):
-            axes[0].axvline(x=timeSeries[0]+(qp*i), color='r')
-        """
-        axes[1].hist(localMinimaSep, color='b', alpha=0.5)
-        axes[1].hist(localMaximaSep, color='r', alpha=0.5)
-        
-        axes[1].axvline(qp_min, color='k')
-        
-        plt.show()
-    
-    numTrials = int(0.2*(qp_max/cadence))
-    
-    MI = np.zeros(2*numTrials)
-    trialDelayIndices = np.arange(int(qp_max/cadence) - numTrials, int(qp_max/cadence) + numTrials)
-    
-    for i,tau in enumerate(trialDelayIndices):
-        MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
-
-    qp = trialDelayIndices[np.argmax(MI)]
-    #print(qp)
-    """
-    MI_long = np.zeros(1000)
-    for i,tau in enumerate(np.arange(1000)):
-        MI_long[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
-    """
-    if plot is True:
-        fig, ax = plt.subplots(1,1, figsize=(8,6))
-        #ax.plot(np.arange(1000), MI_long)
-        ax.plot(trialDelayIndices, MI)
-        ax.axvline(qp)
-        plt.show()
-    
-    return qp
 
 def delayMatrix(timeSeries, tau, m):
     """
