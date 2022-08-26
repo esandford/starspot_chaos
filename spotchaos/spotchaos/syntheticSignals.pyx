@@ -478,29 +478,33 @@ def FS86(time, timeSeries, method="first_or_second_local_min", level_off_criteri
 
     elif method=="first_or_second_local_min":
         #print(localMinima[0])
-        first_local_min = localMinima[0][0]
-        second_local_min = localMinima[0][1]
-        if MI[first_local_min] < MI[second_local_min]:
-            first_or_second = first_local_min
-        else:
-            first_or_second = second_local_min
-        #print("first_or_second is {0}".format(first_or_second))
-        to_return = first_or_second
+        try:
+            first_local_min = localMinima[0][0]
+            second_local_min = localMinima[0][1]
+            if MI[first_local_min] < MI[second_local_min]:
+                first_or_second = first_local_min
+            else:
+                first_or_second = second_local_min
+            #print("first_or_second is {0}".format(first_or_second))
+            to_return = first_or_second
 
-        #check that the smoothing hasn't moved the index of the local minimum 
-        lowIdx = first_or_second - smoothing_length
-        highIdx = first_or_second + smoothing_length
-        #print("lowIdx is {0}".format(lowIdx))
-        #print("highIdx is {0}".format(highIdx))
-        if lowIdx < 0:
-            lowIdx = 0
-        if highIdx > len(MI):
-            highIdx = len(MI)
+            #check that the smoothing hasn't moved the index of the local minimum 
+            lowIdx = first_or_second - smoothing_length
+            highIdx = first_or_second + smoothing_length
+            #print("lowIdx is {0}".format(lowIdx))
+            #print("highIdx is {0}".format(highIdx))
+            if lowIdx < 0:
+                lowIdx = 0
+            if highIdx > len(MI):
+                highIdx = len(MI)
 
-        for j in np.arange(lowIdx,highIdx):
-            if MI[j] < MI[to_return]:
-                #print(j)
-                to_return = j
+            for j in np.arange(lowIdx,highIdx):
+                if MI[j] < MI[to_return]:
+                    #print(j)
+                    to_return = j
+        except IndexError:
+            print("something went wrong in FS86! returning global min of MI")
+            to_return = np.argmin(MI)
 
     elif method=="global_min":
         to_return = np.argmin(MI)
@@ -649,7 +653,7 @@ cpdef nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     return nnI
 
 '''
-cpdef cao97(timeSeries, int tau, int mMax):
+cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
     """
     Calculate arrays E1(m), E2(m) as defined in Cao 1997 equations 3 and 5, respectively. E1 should saturate if signal is
     coming from an attractor. E2, meanwhile, should always be equal to 1 if the time series is stochastic, regardless of m; if
@@ -667,83 +671,92 @@ cpdef cao97(timeSeries, int tau, int mMax):
     
     """
     cdef:
-        int m, i
+        int m, i, N
         double start, end
 
+    N = len(timeSeries)
     # mMax - 1 because we're not bothering with m = 1
     E = np.zeros((mMax), dtype=float)
     E1 = np.zeros((mMax - 1),dtype=float)
+    E1_change = np.zeros((mMax-2),dtype=float)
+
     #E1[0] = 0.
     Estar = np.zeros((mMax), dtype=float)
     E2 = np.zeros((mMax-1),dtype=float)
+    
     #E2[0] = 0.
     
     # E must range up to mMax+1 because E1, E2 calculations require m + 1
     for m in range(1,mMax+1):
-        delayMat_m = delayMatrix(timeSeries, tau, m)
-        delayMat_mp1 = delayMatrix(timeSeries, tau, m+1)
-        nEntries_mp1 = np.shape(delayMat_mp1)[0]
-    
-        # find indices of nearest neighbors--this is the slowest step so far, scales as n_datapoints^2
-        start = time.time()
-        nnIndices, nnDistances = nearestNeighborIndices(delayMat_m, delayMat_mp1)
-        #print(np.shape(nnIndices))
-        #print(np.shape(nnDistances))
-        end = time.time()
-        
-        #print("time taken: {0}".format(end - start))
-        
-        #print(np.shape(delayMat_m))
-        #print(np.shape(delayMat_mp1))
-        #print(nEntries_mp1)
-        # calculate a[i, m] and populate E[m]
-        a = np.zeros(nEntries_mp1, dtype=float)
-        for i in range(nEntries_mp1):
-        #for i in range(10):
-            #print(nnIndices[i])
-            #print(nnDistances[i])
-            j = 0
-            #print("j is 0")
-            numerator = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])
-            denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
-            #print(denominator)
+        if N - (m*tau) <= 0:
+            E[m-1] = np.NaN
+            Estar[m-1] = np.NaN
+        else:
+            delayMat_m = delayMatrix(timeSeries, tau, m)
+            delayMat_mp1 = delayMatrix(timeSeries, tau, m+1)
 
-            #if the distance is zero, take the next nearest neighbor
-            #if the "nearest neighbor" is the point itself, take the next nearest neighbor
-            # (there can be multiple points with distance 0, and PyNNDescent does not
-            # necessarily sort them so that the point itself is the first entry)
-            while denominator == 0. or nnIndices[i,j] == i:
-                j+=1
-                #print("j is {0}".format(j))
+            nEntries_mp1 = np.shape(delayMat_mp1)[0]
+        
+            # find indices of nearest neighbors--this is the slowest step so far, scales as n_datapoints^2
+            start = time.time()
+            nnIndices, nnDistances = nearestNeighborIndices(delayMat_m, delayMat_mp1)
+            #print(np.shape(nnIndices))
+            #print(np.shape(nnDistances))
+            end = time.time()
+            
+            #print("time taken: {0}".format(end - start))
+            
+            #print(np.shape(delayMat_m))
+            #print(np.shape(delayMat_mp1))
+            #print(nEntries_mp1)
+            # calculate a[i, m] and populate E[m]
+            a = np.zeros(nEntries_mp1, dtype=float)
+            for i in range(nEntries_mp1):
+            #for i in range(10):
+                #print(nnIndices[i])
+                #print(nnDistances[i])
+                j = 0
+                #print("j is 0")
+                numerator = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])
                 denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
                 #print(denominator)
+
+                #if the distance is zero, take the next nearest neighbor
+                #if the "nearest neighbor" is the point itself, take the next nearest neighbor
+                # (there can be multiple points with distance 0, and PyNNDescent does not
+                # necessarily sort them so that the point itself is the first entry)
+                while denominator == 0. or nnIndices[i,j] == i:
+                    j+=1
+                    #print("j is {0}".format(j))
+                    denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+                    #print(denominator)
+                
+                #print("numerator ingredients")
+                #print(delayMat_mp1[i])
+                #print(delayMat_mp1[nnIndices[i,j]])
+                #print("numerator")
+                #print(chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]]))
+                #print("denominator ingredients")
+                #print(delayMat_m[i])
+                #print(delayMat_m[nnIndices[i,j]])
+                #print("denominator")
+                #print(chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]]))
+                a[i] = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])/denominator #chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+                
+                #print("a[i]")
+                #print(a[i])
+            #print(a)
+            #fig, ax = plt.subplots(1,1,figsize=(4,3))
+            #ax.hist(a)
+            #plt.show()
+            #print(np.mean(a))
+            E[m-1] = np.mean(a)
             
-            #print("numerator ingredients")
-            #print(delayMat_mp1[i])
-            #print(delayMat_mp1[nnIndices[i,j]])
-            #print("numerator")
-            #print(chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]]))
-            #print("denominator ingredients")
-            #print(delayMat_m[i])
-            #print(delayMat_m[nnIndices[i,j]])
-            #print("denominator")
-            #print(chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]]))
-            a[i] = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])/denominator #chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
-            
-            #print("a[i]")
-            #print(a[i])
-        #print(a)
-        #fig, ax = plt.subplots(1,1,figsize=(4,3))
-        #ax.hist(a)
-        #plt.show()
-        #print(np.mean(a))
-        E[m-1] = np.mean(a)
-        
-        # calculate equation 4 and populate Estar[m]
-        b = np.zeros(nEntries_mp1, dtype=float)
-        for i in range(nEntries_mp1):
-            b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i,j] + m*tau])
-        Estar[m-1] = np.mean(b)
+            # calculate equation 4 and populate Estar[m]
+            b = np.zeros(nEntries_mp1, dtype=float)
+            for i in range(nEntries_mp1):
+                b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i,j] + m*tau])
+            Estar[m-1] = np.mean(b)
     
     #print(E)
     #print(Estar)
@@ -753,7 +766,20 @@ cpdef cao97(timeSeries, int tau, int mMax):
         E2[m] = Estar[m+1]/Estar[m]
     #print(E1)
     #print(E2)
-    return E1, E2
+
+    for m in range(0,mMax-2):
+        #E1_change[m] = np.abs(E1[m+1] - E1[m])
+        E1_change[m] = E1[m+1] - E1[m]
+
+    try:
+        sat_m = np.arange(len(E1_change))[E1_change < E1_change_cutoff][0] + 1
+    except IndexError:
+        sat_m = None
+
+    #print(E1)
+    #print(E1_change)
+    #print(sat_m)
+    return E1, E2, sat_m
 
 
 def localDensity(rArr, delayMat, nNeighbors=200, divprob=1.0, pdm=1.5):
@@ -829,36 +855,74 @@ def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
     C1 : np.array (like rArr)
     C2 : np.array (like rArr)
     """
-    
-    delayMat = delayMatrix(timeSeries, tau, m)
 
-    N = np.shape(delayMat)[0]
+    if len(timeSeries) - (m*tau) <= 0:
+        print("warning: m too large, returning NaN arrays")
+        nArr = np.empty((1, len(rArr)))
+        C0 = np.empty_like(rArr) # capacity or fractal dimension
+        C1 = np.empty_like(rArr) # information dimension or pointwise dimension
+        C2 = np.empty_like(rArr)
 
-    # cap nNeighbors to eliminate memory pressure problem
-    if N <= 10000:
-        nNeighbors = N
+        nArr[:] = np.NaN
+        C0[:] = np.NaN
+        C1[:] = np.NaN
+        C2[:] = np.NaN
     else:
-        nNeighbors = 5000
+        delayMat = delayMatrix(timeSeries, tau, m)
 
-    nArr, neighborDistances = localDensity(rArr, delayMat, nNeighbors=nNeighbors, divprob=divprob, pdm=pdm) # shape ((N, len(rArr))
-    C0 = np.zeros_like(rArr) # capacity or fractal dimension
-    C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
-    C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
-                    
-    for rIdx, r in enumerate(rArr):
-        #C0 is the harmonic mean of nArr, per Kurths & Herzel 1987
-        C0sum = (1./N) * np.sum( (1./nArr[:,rIdx]) )
-        C0[rIdx] = 1./C0sum
-        
-        #C1 is the geometric mean of nArr
-        C1sum = np.sum(np.log(nArr[:,rIdx]))
-        C1[rIdx] = np.exp((1./N)*C1sum)
+        N = np.shape(delayMat)[0]
 
-        #C2 is the arithmetic mean of nArr
-        C2sum = np.sum(nArr[:,rIdx])
-        C2[rIdx] = (1./N)*C2sum
+        # cap nNeighbors to eliminate memory pressure problem
+        if N <= 10000:
+            nNeighbors = N
+        else:
+            nNeighbors = 5000
+
+        nArr, neighborDistances = localDensity(rArr, delayMat, nNeighbors=nNeighbors, divprob=divprob, pdm=pdm) # shape ((N, len(rArr))
+        C0 = np.zeros_like(rArr) # capacity or fractal dimension
+        C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
+        C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
+                        
+        for rIdx, r in enumerate(rArr):
+            #C0 is the harmonic mean of nArr, per Kurths & Herzel 1987
+            C0sum = (1./N) * np.sum( (1./nArr[:,rIdx]) )
+            C0[rIdx] = 1./C0sum
+            
+            #C1 is the geometric mean of nArr
+            C1sum = np.sum(np.log(nArr[:,rIdx]))
+            C1[rIdx] = np.exp((1./N)*C1sum)
+
+            #C2 is the arithmetic mean of nArr
+            C2sum = np.sum(nArr[:,rIdx])
+            C2[rIdx] = (1./N)*C2sum
     
     return C0, C1, C2, nArr
+
+def powerLawSlopeDistribution(rArr, nArr):
+    N = np.shape(nArr)[0]
+
+    medians = np.percentile(nArr, 50, axis=0)
+        
+    # exclude values of r where the median of n(r) is <= 10./N . Cutoff is a little arbitrary but the idea is that these points don't have enough neighbors.
+    enoughNeighborsIdxs = np.arange(len(rArr))[medians > 10./N]
+    firstGood = enoughNeighborsIdxs[0]
+    
+    # exclude values of r where any n(r) are NaN. The time series is not long enough to populate all the neighbors of the points.
+    anyNans = [np.any(~np.isfinite(nArr[:,i])) for i in range(len(rArr))]
+    anyNans = np.array(anyNans)
+    nansIdxs = np.arange(len(rArr))[anyNans]
+    lastGood = nansIdxs[0]
+
+    params_dist = np.zeros((N,2))
+    params_unc_dist = np.zeros((N,2,2))
+
+    for i in range(N):
+        params, params_unc = normal_equation(x=np.log10(rArr)[firstGood:lastGood], y=np.log10(nArr[i])[firstGood:lastGood], yerr=np.ones_like(nArr[i])[firstGood:lastGood], order=2)
+    
+        params_dist[i] = params
+        params_unc_dist[i] = params_unc
+
+    return params_dist, params_unc_dist
 
 def direct_C2(rArr, timeSeries, tau, m, nNeighbors):
     """
