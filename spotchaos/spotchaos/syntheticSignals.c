@@ -1895,9 +1895,9 @@ static const char __pyx_k_level_off_criterion[] = "level_off_criterion";
 static const char __pyx_k_level_off_local_min[] = "level_off_local_min";
 static const char __pyx_k_matplotlib_gridspec[] = "matplotlib.gridspec";
 static const char __pyx_k_power_dimensionless[] = "power [dimensionless]";
-static const char __pyx_k_rotated_Rossler_vel[] = "rotated_Rossler_vel";
 static const char __pyx_k_nearestNeighborIndices[] = "nearestNeighborIndices";
 static const char __pyx_k_scipy_spatial_distance[] = "scipy.spatial.distance";
+static const char __pyx_k_transformed_Rossler_vel[] = "transformed_Rossler_vel";
 static const char __pyx_k_Lomb_Scargle_periodogram[] = "Lomb-Scargle periodogram";
 static const char __pyx_k_first_or_second_local_min[] = "first_or_second_local_min";
 static const char __pyx_k_local_min_stop_decreasing[] = "local_min_stop_decreasing";
@@ -2156,7 +2156,6 @@ static PyObject *__pyx_n_s_range;
 static PyObject *__pyx_n_s_rdot;
 static PyObject *__pyx_n_s_ret;
 static PyObject *__pyx_n_s_rho;
-static PyObject *__pyx_n_s_rotated_Rossler_vel;
 static PyObject *__pyx_n_s_same;
 static PyObject *__pyx_n_s_samples_per_peak;
 static PyObject *__pyx_n_s_savgol_filter;
@@ -2200,6 +2199,7 @@ static PyObject *__pyx_n_s_timeSeries;
 static PyObject *__pyx_kp_s_time_series;
 static PyObject *__pyx_n_s_title;
 static PyObject *__pyx_n_s_to_return;
+static PyObject *__pyx_n_s_transformed_Rossler_vel;
 static PyObject *__pyx_n_s_trialDelayIndices;
 static PyObject *__pyx_n_s_true_freq;
 static PyObject *__pyx_n_s_unstable;
@@ -2235,7 +2235,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_plotTimeSeries(CYTHON_UN
 static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_2KB88(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_t, PyObject *__pyx_v_a1, PyObject *__pyx_v_a2, PyObject *__pyx_v_a3, PyObject *__pyx_v_v1, PyObject *__pyx_v_v2, PyObject *__pyx_v_v3); /* proto */
 static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_4Rossler_FPs(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_a, PyObject *__pyx_v_b, PyObject *__pyx_v_c); /* proto */
 static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_6Rossler_vel(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_t, PyObject *__pyx_v_r); /* proto */
-static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8rotated_Rossler_vel(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_t, PyObject *__pyx_v_r); /* proto */
+static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8transformed_Rossler_vel(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_t, PyObject *__pyx_v_r); /* proto */
 static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_10Lorenz_FPs(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sigma, PyObject *__pyx_v_beta, PyObject *__pyx_v_rho); /* proto */
 static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_12Lorenz_vel(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_t, PyObject *__pyx_v_r); /* proto */
 static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_14bin2D(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_timeSeries, PyObject *__pyx_v_tauIdx, PyObject *__pyx_v_plotTitle); /* proto */
@@ -5318,16 +5318,16 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_6Rossler_vel(CYTHON_UNUS
 /* "spotchaos/syntheticSignals.pyx":146
  * 
  * 
- * def rotated_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
+ * def transformed_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
  *     """
- *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  Rossler system. This function
+ *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  transformed Rossler system. This function
  */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9rotated_Rossler_vel(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static char __pyx_doc_9spotchaos_16syntheticSignals_8rotated_Rossler_vel[] = "\n    For array r = (x, y, z), return array (xdot, ydot, zdot) for the  Rossler system. This function\n    is of the form expected by scipy's RK45 integrator.\n    \n    Inputs: \n    t : np.array \n    r : np.array\n    \n    Outputs:\n    rdot : np.array\n    \n    ";
-static PyMethodDef __pyx_mdef_9spotchaos_16syntheticSignals_9rotated_Rossler_vel = {"rotated_Rossler_vel", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_9spotchaos_16syntheticSignals_9rotated_Rossler_vel, METH_VARARGS|METH_KEYWORDS, __pyx_doc_9spotchaos_16syntheticSignals_8rotated_Rossler_vel};
-static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9rotated_Rossler_vel(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9transformed_Rossler_vel(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static char __pyx_doc_9spotchaos_16syntheticSignals_8transformed_Rossler_vel[] = "\n    For array r = (x, y, z), return array (xdot, ydot, zdot) for the  transformed Rossler system. This function\n    is of the form expected by scipy's RK45 integrator.\n    \n    Inputs: \n    t : np.array \n    r : np.array\n    \n    Outputs:\n    rdot : np.array\n    \n    ";
+static PyMethodDef __pyx_mdef_9spotchaos_16syntheticSignals_9transformed_Rossler_vel = {"transformed_Rossler_vel", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_9spotchaos_16syntheticSignals_9transformed_Rossler_vel, METH_VARARGS|METH_KEYWORDS, __pyx_doc_9spotchaos_16syntheticSignals_8transformed_Rossler_vel};
+static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9transformed_Rossler_vel(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   CYTHON_UNUSED PyObject *__pyx_v_t = 0;
   PyObject *__pyx_v_r = 0;
   int __pyx_lineno = 0;
@@ -5335,7 +5335,7 @@ static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9rotated_Rossler_vel(PyO
   int __pyx_clineno = 0;
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
-  __Pyx_RefNannySetupContext("rotated_Rossler_vel (wrapper)", 0);
+  __Pyx_RefNannySetupContext("transformed_Rossler_vel (wrapper)", 0);
   {
     static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_t,&__pyx_n_s_r,0};
     PyObject* values[2] = {0,0};
@@ -5359,11 +5359,11 @@ static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9rotated_Rossler_vel(PyO
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_r)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("rotated_Rossler_vel", 1, 2, 2, 1); __PYX_ERR(0, 146, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("transformed_Rossler_vel", 1, 2, 2, 1); __PYX_ERR(0, 146, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "rotated_Rossler_vel") < 0)) __PYX_ERR(0, 146, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "transformed_Rossler_vel") < 0)) __PYX_ERR(0, 146, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 2) {
       goto __pyx_L5_argtuple_error;
@@ -5376,20 +5376,20 @@ static PyObject *__pyx_pw_9spotchaos_16syntheticSignals_9rotated_Rossler_vel(PyO
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("rotated_Rossler_vel", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 146, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("transformed_Rossler_vel", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 146, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("spotchaos.syntheticSignals.rotated_Rossler_vel", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("spotchaos.syntheticSignals.transformed_Rossler_vel", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_9spotchaos_16syntheticSignals_8rotated_Rossler_vel(__pyx_self, __pyx_v_t, __pyx_v_r);
+  __pyx_r = __pyx_pf_9spotchaos_16syntheticSignals_8transformed_Rossler_vel(__pyx_self, __pyx_v_t, __pyx_v_r);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8rotated_Rossler_vel(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_t, PyObject *__pyx_v_r) {
+static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8transformed_Rossler_vel(CYTHON_UNUSED PyObject *__pyx_self, CYTHON_UNUSED PyObject *__pyx_v_t, PyObject *__pyx_v_r) {
   double __pyx_v_a;
   double __pyx_v_b;
   double __pyx_v_c;
@@ -5411,8 +5411,8 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8rotated_Rossler_vel(CYT
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_TraceFrameInit(__pyx_codeobj__14)
-  __Pyx_RefNannySetupContext("rotated_Rossler_vel", 0);
-  __Pyx_TraceCall("rotated_Rossler_vel", __pyx_f[0], 146, 0, __PYX_ERR(0, 146, __pyx_L1_error));
+  __Pyx_RefNannySetupContext("transformed_Rossler_vel", 0);
+  __Pyx_TraceCall("transformed_Rossler_vel", __pyx_f[0], 146, 0, __PYX_ERR(0, 146, __pyx_L1_error));
 
   /* "spotchaos/syntheticSignals.pyx":159
  * 
@@ -5779,9 +5779,9 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8rotated_Rossler_vel(CYT
   /* "spotchaos/syntheticSignals.pyx":146
  * 
  * 
- * def rotated_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
+ * def transformed_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
  *     """
- *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  Rossler system. This function
+ *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  transformed Rossler system. This function
  */
 
   /* function exit code */
@@ -5791,7 +5791,7 @@ static PyObject *__pyx_pf_9spotchaos_16syntheticSignals_8rotated_Rossler_vel(CYT
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
   __Pyx_XDECREF(__pyx_t_5);
-  __Pyx_AddTraceback("spotchaos.syntheticSignals.rotated_Rossler_vel", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("spotchaos.syntheticSignals.transformed_Rossler_vel", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XDECREF(__pyx_v_x);
@@ -20376,7 +20376,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_rdot, __pyx_k_rdot, sizeof(__pyx_k_rdot), 0, 0, 1, 1},
   {&__pyx_n_s_ret, __pyx_k_ret, sizeof(__pyx_k_ret), 0, 0, 1, 1},
   {&__pyx_n_s_rho, __pyx_k_rho, sizeof(__pyx_k_rho), 0, 0, 1, 1},
-  {&__pyx_n_s_rotated_Rossler_vel, __pyx_k_rotated_Rossler_vel, sizeof(__pyx_k_rotated_Rossler_vel), 0, 0, 1, 1},
   {&__pyx_n_s_same, __pyx_k_same, sizeof(__pyx_k_same), 0, 0, 1, 1},
   {&__pyx_n_s_samples_per_peak, __pyx_k_samples_per_peak, sizeof(__pyx_k_samples_per_peak), 0, 0, 1, 1},
   {&__pyx_n_s_savgol_filter, __pyx_k_savgol_filter, sizeof(__pyx_k_savgol_filter), 0, 0, 1, 1},
@@ -20420,6 +20419,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_time_series, __pyx_k_time_series, sizeof(__pyx_k_time_series), 0, 0, 1, 0},
   {&__pyx_n_s_title, __pyx_k_title, sizeof(__pyx_k_title), 0, 0, 1, 1},
   {&__pyx_n_s_to_return, __pyx_k_to_return, sizeof(__pyx_k_to_return), 0, 0, 1, 1},
+  {&__pyx_n_s_transformed_Rossler_vel, __pyx_k_transformed_Rossler_vel, sizeof(__pyx_k_transformed_Rossler_vel), 0, 0, 1, 1},
   {&__pyx_n_s_trialDelayIndices, __pyx_k_trialDelayIndices, sizeof(__pyx_k_trialDelayIndices), 0, 0, 1, 1},
   {&__pyx_n_s_true_freq, __pyx_k_true_freq, sizeof(__pyx_k_true_freq), 0, 0, 1, 1},
   {&__pyx_n_s_unstable, __pyx_k_unstable, sizeof(__pyx_k_unstable), 0, 0, 1, 1},
@@ -20682,14 +20682,14 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   /* "spotchaos/syntheticSignals.pyx":146
  * 
  * 
- * def rotated_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
+ * def transformed_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
  *     """
- *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  Rossler system. This function
+ *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  transformed Rossler system. This function
  */
   __pyx_tuple__48 = PyTuple_Pack(11, __pyx_n_s_t, __pyx_n_s_r, __pyx_n_s_a, __pyx_n_s_b, __pyx_n_s_c, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_z, __pyx_n_s_v_x, __pyx_n_s_v_y, __pyx_n_s_v_z); if (unlikely(!__pyx_tuple__48)) __PYX_ERR(0, 146, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__48);
   __Pyx_GIVEREF(__pyx_tuple__48);
-  __pyx_codeobj__14 = (PyObject*)__Pyx_PyCode_New(2, 0, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__48, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_spotchaos_syntheticSignals_pyx, __pyx_n_s_rotated_Rossler_vel, 146, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__14)) __PYX_ERR(0, 146, __pyx_L1_error)
+  __pyx_codeobj__14 = (PyObject*)__Pyx_PyCode_New(2, 0, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__48, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_spotchaos_syntheticSignals_pyx, __pyx_n_s_transformed_Rossler_vel, 146, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__14)) __PYX_ERR(0, 146, __pyx_L1_error)
 
   /* "spotchaos/syntheticSignals.pyx":181
  * 
@@ -21409,7 +21409,7 @@ if (!__Pyx_RefNanny) {
  * from scipy.spatial.distance import chebyshev
  * from pynndescent import NNDescent             # <<<<<<<<<<<<<<
  * 
- * __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'rotated_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
+ * __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'transformed_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
  */
   __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 11, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -21428,7 +21428,7 @@ if (!__Pyx_RefNanny) {
   /* "spotchaos/syntheticSignals.pyx":13
  * from pynndescent import NNDescent
  * 
- * __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'rotated_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']             # <<<<<<<<<<<<<<
+ * __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'transformed_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']             # <<<<<<<<<<<<<<
  * 
  * 
  */
@@ -21446,9 +21446,9 @@ if (!__Pyx_RefNanny) {
   __Pyx_INCREF(__pyx_n_s_Rossler_vel);
   __Pyx_GIVEREF(__pyx_n_s_Rossler_vel);
   PyList_SET_ITEM(__pyx_t_2, 3, __pyx_n_s_Rossler_vel);
-  __Pyx_INCREF(__pyx_n_s_rotated_Rossler_vel);
-  __Pyx_GIVEREF(__pyx_n_s_rotated_Rossler_vel);
-  PyList_SET_ITEM(__pyx_t_2, 4, __pyx_n_s_rotated_Rossler_vel);
+  __Pyx_INCREF(__pyx_n_s_transformed_Rossler_vel);
+  __Pyx_GIVEREF(__pyx_n_s_transformed_Rossler_vel);
+  PyList_SET_ITEM(__pyx_t_2, 4, __pyx_n_s_transformed_Rossler_vel);
   __Pyx_INCREF(__pyx_n_s_Lorenz_FPs);
   __Pyx_GIVEREF(__pyx_n_s_Lorenz_FPs);
   PyList_SET_ITEM(__pyx_t_2, 5, __pyx_n_s_Lorenz_FPs);
@@ -21548,13 +21548,13 @@ if (!__Pyx_RefNanny) {
   /* "spotchaos/syntheticSignals.pyx":146
  * 
  * 
- * def rotated_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
+ * def transformed_Rossler_vel(t,r):             # <<<<<<<<<<<<<<
  *     """
- *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  Rossler system. This function
+ *     For array r = (x, y, z), return array (xdot, ydot, zdot) for the  transformed Rossler system. This function
  */
-  __pyx_t_2 = PyCFunction_NewEx(&__pyx_mdef_9spotchaos_16syntheticSignals_9rotated_Rossler_vel, NULL, __pyx_n_s_spotchaos_syntheticSignals); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 146, __pyx_L1_error)
+  __pyx_t_2 = PyCFunction_NewEx(&__pyx_mdef_9spotchaos_16syntheticSignals_9transformed_Rossler_vel, NULL, __pyx_n_s_spotchaos_syntheticSignals); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 146, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_rotated_Rossler_vel, __pyx_t_2) < 0) __PYX_ERR(0, 146, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_transformed_Rossler_vel, __pyx_t_2) < 0) __PYX_ERR(0, 146, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "spotchaos/syntheticSignals.pyx":181

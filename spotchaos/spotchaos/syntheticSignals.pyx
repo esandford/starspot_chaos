@@ -10,7 +10,7 @@ from scipy.signal import argrelextrema, savgol_filter, correlate
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
 
-__all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'rotated_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
+__all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'transformed_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
 
 
 def plotTimeSeries(t, y, min_freq=None, max_freq=None, nq=None, spp=10, true_freq=None, LS_xlim=None, plot_harmonics=False, title=None):
@@ -143,9 +143,9 @@ def Rossler_vel(t,r):
     return rdot
 
 
-def rotated_Rossler_vel(t,r):
+def transformed_Rossler_vel(t,r):
     """
-    For array r = (x, y, z), return array (xdot, ydot, zdot) for the  Rossler system. This function
+    For array r = (x, y, z), return array (xdot, ydot, zdot) for the  transformed Rossler system. This function
     is of the form expected by scipy's RK45 integrator.
     
     Inputs: 
