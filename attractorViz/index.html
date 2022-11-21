@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.circle {
+  opacity: 0.5;
+  fill: #ccc;
+  stroke: steelblue;
+  r: 3px;
+}
+
+.track {
+  fill: none;
+  stroke: url("#line-gradient");
+}
+
+</style>
+<body></body>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+
+<script>
+var margin = {top: 10, right: 10, bottom: 10, left: 10},
+    width = 600 - margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom;
+
+var rho = 28.0,
+    sigma = 10.0,
+    beta = 8.0 / 3.0,
+    x = -13.29390985,
+    y = -16.32060497,
+    z = 29.908649440,
+    xr = -7.06916283,
+    yr = 0.71266172, 
+    zr = 0.01578853,
+    xt = 3.61620990,
+    yt = -5.17683558,
+    zt = -1.58314013,
+    t = 0.01,
+    tr = 0.02,
+    iter = 0,
+    max_iter = 10000,
+    data = [],
+    a=0.2,
+    b=0.2,
+    c=5.7;
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    //.attr("class", "g-lorenz")
+    .attr("class","g-rossler")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var colorScale = d3.scaleLinear()
+    .domain([0, 40])
+    .range([0, 1]);
+
+var circle = svg.append("circle")
+    .attr("class", "circle");
+
+var line = d3.line()
+    .curve(d3.curveCardinal)
+    .x(function(d) { return d[0]; })
+    .y(function(d) { return d[1]; });
+
+var track = svg.append("path")
+    .attr("class", "track");
+
+// set the gradient
+svg.append("linearGradient")
+  .attr("id", "line-gradient")
+  .attr("x1", "10%").attr("x1", "90%")
+  .attr("y1", "10%").attr("y2", "90%")
+.selectAll("stop")
+  .data([
+    {offset: "0%", color: "#b2182b"},
+    {offset: "100%", color: "#2166ac"}
+  ])
+.enter().append("stop")
+  .attr("offset", function(d) { return d.offset; })
+  .attr("stop-color", function(d) { return d.color; });
+
+function lorenz(callback) {
+  callback(
+    x += t * (sigma * (y - x)),
+    y += t * (x * (rho - z) - y),
+    z += t * (x * y - beta * z)
+    );
+}
+
+function rossler(callback) {
+  callback(
+    xr += tr * (-yr - zr),
+    yr += tr * (xr + (a*yr)),
+    zr += tr * (b + zr*(xr-c))
+    );
+}
+
+function transformedRossler(callback) {
+  callback(
+    xt += tr * (0.5*(xt*(a - 1) + yt*(1 - a) + zt*(1 + a) + 1.41421356237*b + (xt + yt - zt)*((1.41421356237/2)*(yt + zt - xt) - c))),
+    yt += tr * ((1./1.41421356237)*b + 0.5*(xt + yt - zt)*((1.41421356237/2)*(zt + yt - xt) - c) - xt),
+    zt += tr * (-xt + 0.5*(xt*(a - 1) + yt*(1 - a) + zt*(1 + a)))
+    );
+}
+
+function drawLorenz(x, y, z) {
+  data.push([(width / 2 + 10 * x), (height + 10 * -z)]);
+  track.attr("d", line(data)).attr("stroke", "url(#line-gradient)");
+  circle.attr("transform", function(d) { return "translate(" + data[data.length - 1] + ")"; });
+}
+
+function drawRossler(xr, yr, zr) {
+  data.push([(width / 2 + 20 * xr), (height - 10 + 20 * (-zr*Math.cos(0.1) - yr*Math.sin(0.1) ))]);
+  track.attr("d", line(data)).attr("stroke", "url(#line-gradient)");
+  circle.attr("transform", function(d) { return "translate(" + data[data.length - 1] + ")"; });
+}
+
+function drawTransformedRossler(xt, yt, zt) {
+  data.push([(width / 2 + 20 * xt), ( (3 *height) / 4 + 20 * -yt)]);
+  track.attr("d", line(data)).attr("stroke", "url(#line-gradient)");
+  circle.attr("transform", function(d) { return "translate(" + data[data.length - 1] + ")"; });
+}
+
+var interval = setInterval(function() {
+  iter++;
+  if (iter >= max_iter)
+    clearInterval(interval);
+  //lorenz(drawLorenz);
+  //rossler(drawRossler);
+  transformedRossler(drawTransformedRossler);
+}, 10);
+
+</script> 
+
+
+<!--
+{
+  "name": "lorenz attractor",
+  "version": "0.0.1",
+  "description": "Visualization of a Lorentz attractor",
+  "keywords": [
+    "math",
+    "visualization",
+    "chaos theory",
+    "d3.js",
+    "oscillator"
+  ],
+  "author": "Hugo Janssen <nl-hugo@hugojanssen.nl>",
+  "private": true,
+  "license": "MIT"
+}
+-->
