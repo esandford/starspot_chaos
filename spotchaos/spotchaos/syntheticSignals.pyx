@@ -340,58 +340,105 @@ def moving_average(a, n=3) :
 
 
 
-def estimateQuasiPeriod(time, timeSeries, plot=False):
+def estimateQuasiPeriod(time, timeSeries, method="power", plot=False):
     """
-    Take the quasi-period of the time series as 1/(frequency of max power), in units of time series cadence.
+    if method=="power":
+        Take the quasi-period of the time series as 1/(frequency of max power), in units of time series cadence.
+        ONLY appropriate when the LS periodogram has a clear frequency of max power---not true for e.g. Lorenz x, y.
+        Only use after visual inspection of LS periodogram.
+    elif method=="localMaxSep":
+        Make a first guess = the median interval between successive local maxima, in units of cadence
+        Then find the nearest local maximum in mutual information to that guess.
     """
     cadence = np.median(time[1:] - time[0:-1])
     
-    frequency, power = LombScargle(time[:,0],timeSeries).autopower(minimum_frequency=1./(time[-1] - time[0]), maximum_frequency=1./(2.*cadence))
-    
-    qp_time = 1./frequency[np.argmax(power)]
-    qp_idx = int(qp_time/cadence)
+    if method == "power":
+        frequency, power = LombScargle(time[:,0],timeSeries).autopower(minimum_frequency=1./(time[-1] - time[0]), maximum_frequency=1./(2.*cadence))
+        
+        qp_time = 1./frequency[np.argmax(power)]
+        qp_idx = int(qp_time/cadence)
 
-    #check that there isn't a nearby max of mutual information
-    trialDelayIndices = np.arange(2*qp_idx)
-    
-    if len(trialDelayIndices) > len(timeSeries)-5:
-        trialDelayIndices = np.arange(len(timeSeries)-5)
+        #check that there isn't a nearby max of mutual information
+        trialDelayIndices = np.arange(2*qp_idx)
+        
+        if len(trialDelayIndices) > len(timeSeries)-5:
+            trialDelayIndices = np.arange(len(timeSeries)-5)
 
-    n = -2
-    while qp_idx > len(timeSeries) - 5:
-        qp_idx = int((1./(frequency[np.argsort(power)][n]))/cadence)
-        n -= 1
+        n = -2
+        while qp_idx > len(timeSeries) - 5:
+            qp_idx = int((1./(frequency[np.argsort(power)][n]))/cadence)
+            n -= 1
 
-    MI = np.zeros_like(trialDelayIndices,dtype=float)
-    
-    for i,tau in enumerate(trialDelayIndices):
-        MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+        MI = np.zeros_like(trialDelayIndices,dtype=float)
+        
+        for i,tau in enumerate(trialDelayIndices):
+            MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
 
-    minIdx = int(0.9*qp_idx)
-    maxIdx = int(1.1*qp_idx)
-    
-    if maxIdx > len(timeSeries):
-        maxIdx = len(timeSeries)
+        minIdx = int(0.9*qp_idx)
+        maxIdx = int(1.1*qp_idx)
+        
+        if maxIdx > len(timeSeries):
+            maxIdx = len(timeSeries)
 
-    for j in range(minIdx, maxIdx):
-        if MI[j] > MI[qp_idx]:
-            qp_idx = j
+        for j in range(minIdx, maxIdx):
+            if MI[j] > MI[qp_idx]:
+                qp_idx = j
 
-    if plot is True:
-        #lsfig, ax = plt.subplots(1,1,figsize=(8,6))
-        #ax.plot(frequency, power)
-        #ax.axvline(frequency[np.argmax(power)], color="r")
-        #plt.show()
-       
-        MIfig, ax = plt.subplots(1,1,figsize=(8,6))
-        ax.plot(MI)
-        ax.axvline(x=qp_idx,color='r')
-        plt.show()
+        if plot is True:
+            MIfig, ax = plt.subplots(1,1,figsize=(8,6))
+            ax.plot(MI)
+            ax.axvline(x=qp_idx,color='r')
+            plt.show()
+
+    elif method == "localMaxSep":
+        localMinima = argrelextrema(timeSeries, np.less)
+        localMaxima = argrelextrema(timeSeries, np.greater)
+
+        localMinimaSep = time[localMinima[0][1:]] - time[localMinima[0][:-1]]
+        localMaximaSep = time[localMaxima[0][1:]] - time[localMaxima[0][:-1]]
+
+        qp_min = np.median(localMinimaSep)
+        qp_max = np.median(localMaximaSep)
+
+        qp_interval = np.max(np.array((qp_min, qp_max)))
+
+        numTrials = int(0.2*(qp_interval/cadence))
+        MI = np.zeros(2*numTrials)
+        trialDelayIndices = np.arange(int(qp_interval/cadence) - numTrials, int(qp_interval/cadence) + numTrials)
+
+        for i,tau in enumerate(trialDelayIndices):
+            MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+
+        qp_idx = trialDelayIndices[np.argmax(MI)]
+        
+        #MI_long = np.zeros(200)
+        #for i,tau in enumerate(np.arange(200)):
+        #    MI_long[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
+
+        #compute autocorrelation function
+        #autocorr = correlate(timeSeries, timeSeries, mode="same")
+        #autocorr = autocorr/np.max(autocorr)
+
+        #zeros of autocorrelation fn
+        #ac_zeros = (np.diff(np.sign(autocorr)) != 0)*1
+
+        if plot is True:
+            fig, ax = plt.subplots(1,1, figsize=(8,6))
+            ax.plot(trialDelayIndices, MI)
+            #ax.plot(np.arange(200), MI_long)
+            #ax.plot(autocorr)
+            ax.axvline(qp_idx,color='r')
+
+            #if np.any(ac_zeros):
+            #    for i in range(np.sum(ac_zeros)):
+            #        ax.axvline(np.arange(len(ac_zeros))[ac_zeros==1][i])
+            #ax.axhline(0)
+                
 
     return qp_idx
 
 
-def FS86(time, timeSeries, method="first_or_second_local_min", level_off_criterion=0.05, plot=False):
+def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min", level_off_criterion=0.05, plot=False):
     """
     Calculate the first local minimum of the mutual information as a function of delay time (in units of the cadence
     of the time series).
@@ -409,7 +456,7 @@ def FS86(time, timeSeries, method="first_or_second_local_min", level_off_criteri
     firstLocalMinIdx (integer): index into MI of the first local minimum.
     
     """
-    qp = estimateQuasiPeriod(time, timeSeries, plot=False)
+    qp = estimateQuasiPeriod(time, timeSeries, method=QPmethod, plot=False)
     
     trialDelayIndices = np.arange(2*qp)
 
