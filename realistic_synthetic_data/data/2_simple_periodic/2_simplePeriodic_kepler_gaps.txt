@@ -1,4 +1,4 @@
-# t[BJD] flux_norm_perf-1 flux_norm_noise-1 flux_norm_err
+# t[BJD] flux_norm_perf flux_norm_noise flux_norm_err
 2454964.553195 0.993446 0.000000 0.000347
 2454964.594064 0.993541 0.000000 0.000347
 2454964.634933 0.993900 0.000000 0.000347
