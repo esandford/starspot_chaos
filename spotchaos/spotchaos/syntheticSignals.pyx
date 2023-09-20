@@ -6,7 +6,7 @@ import time
 from astropy.timeseries import LombScargle
 #from scipy.integrate import RK45
 from scipy.stats import iqr
-from scipy.signal import argrelextrema, savgol_filter, correlate
+from scipy.signal import argrelextrema, savgol_filter, correlate, find_peaks_cwt
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
 
@@ -319,6 +319,7 @@ def optimal_Nbins(X):
     """
     bin_width = 2. * iqr(X) * (len(X)**(-1./3.))
     n_bins = int(np.ptp(X)/bin_width)
+
     return n_bins
 
 
@@ -340,7 +341,7 @@ def moving_average(a, n=3) :
 
 
 
-def estimateQuasiPeriod(time, timeSeries, method="power", plot=False):
+def estimateQuasiPeriod(time, timeSeries, method="power", cwt_widths=None, plot=False):
     """
     if method=="power":
         Take the quasi-period of the time series as 1/(frequency of max power), in units of time series cadence.
@@ -349,11 +350,12 @@ def estimateQuasiPeriod(time, timeSeries, method="power", plot=False):
     elif method=="localMaxSep":
         Make a first guess = the median interval between successive local maxima, in units of cadence
         Then find the nearest local maximum in mutual information to that guess.
+        Need to supply a cwt_widts (e.g. np.arange(10,300,10) for Lorenz x, y)
     """
     cadence = np.median(time[1:] - time[0:-1])
     
     if method == "power":
-        frequency, power = LombScargle(time[:,0],timeSeries).autopower(minimum_frequency=1./(time[-1] - time[0]), maximum_frequency=1./(2.*cadence))
+        frequency, power = LombScargle(time,timeSeries).autopower(minimum_frequency=1./(time[-1] - time[0]), maximum_frequency=1./(2.*cadence))
         
         qp_time = 1./frequency[np.argmax(power)]
         qp_idx = int(qp_time/cadence)
@@ -391,11 +393,11 @@ def estimateQuasiPeriod(time, timeSeries, method="power", plot=False):
             plt.show()
 
     elif method == "localMaxSep":
-        localMinima = argrelextrema(timeSeries, np.less)
-        localMaxima = argrelextrema(timeSeries, np.greater)
+        localMaxima = find_peaks_cwt(timeSeries, widths = cwt_widths)
+        localMinima = find_peaks_cwt(-timeSeries, widths = cwt_widths)
 
-        localMinimaSep = time[localMinima[0][1:]] - time[localMinima[0][:-1]]
-        localMaximaSep = time[localMaxima[0][1:]] - time[localMaxima[0][:-1]]
+        localMinimaSep = time[localMinima[1:]] - time[localMinima[:-1]]
+        localMaximaSep = time[localMaxima[1:]] - time[localMaxima[:-1]]
 
         qp_min = np.median(localMinimaSep)
         qp_max = np.median(localMaximaSep)
@@ -403,6 +405,10 @@ def estimateQuasiPeriod(time, timeSeries, method="power", plot=False):
         qp_interval = np.max(np.array((qp_min, qp_max)))
 
         numTrials = int(0.2*(qp_interval/cadence))
+
+        if numTrials < 5:
+            numTrials = int(qp_interval/cadence)
+            
         MI = np.zeros(2*numTrials)
         trialDelayIndices = np.arange(int(qp_interval/cadence) - numTrials, int(qp_interval/cadence) + numTrials)
 
@@ -438,30 +444,35 @@ def estimateQuasiPeriod(time, timeSeries, method="power", plot=False):
     return qp_idx
 
 
-def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min", level_off_criterion=0.05, plot=False):
+def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min", cwt_widths = np.arange(5,100,5), level_off_criterion=0.05, plot=False):
     """
     Calculate the first local minimum of the mutual information as a function of delay time (in units of the cadence
     of the time series).
 
     Inputs:
     timeSeries (array-like): the time series on which to calculate the mutual information between pairs of delayed points
-    trialDelayIndices (array-like): delay times (in units of time series cadence) to test
-    method (str): global_min, 
+
+    method (str): first_or_second_local_min,
+                  global_min, 
                   first_local_min,
                   local_min_stop_decreasing, or 
                   level_off_local_min (which requires additional argument level_off_criterion)
     Returns:
-    MI (array-like, same shape as trialDelayIndices): each entry is the mutual information calculated at the respective
-    choice of tau from trialDelayIndices
-    firstLocalMinIdx (integer): index into MI of the first local minimum.
+    MI (array-like): each entry is the mutual information calculated at the respective choice 
+                    of tau, where tau ranges from 1 to 2*qp
+    idx_to_return (integer): index into MI of the first local minimum.
     
     """
-    qp = estimateQuasiPeriod(time, timeSeries, method=QPmethod, plot=False)
+    qp = estimateQuasiPeriod(time, timeSeries, method=QPmethod, cwt_widths=cwt_widths, plot=False)
     
+    if qp < 10:
+        print("short qp")
+        qp = 10
+
     trialDelayIndices = np.arange(2*qp)
 
     MI = np.zeros_like(trialDelayIndices,dtype=float)
-    
+
     for i,tau in enumerate(trialDelayIndices):
         MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
 
@@ -469,16 +480,19 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
     smoothing_length = int(qp/2)
     if smoothing_length % 2 == 0:
         smoothing_length = smoothing_length - 1
-    #if smoothing_length < 11:
-    #    smoothing_length = 11
+    #if smoothing_length < 3:
+    #    smoothing_length = 3
 
-    #print(smoothing_length)
-    smooth_MI = savgol_filter(MI, smoothing_length, 2)
-    localMinima = argrelextrema(smooth_MI, np.less)
+    #print("len(MI) is {0}".format(len(MI)))
+    #print("smoothing length is {0}".format(smoothing_length))
 
+    #smooth_MI = savgol_filter(MI, smoothing_length, 2)
+    #localMinima = argrelextrema(smooth_MI, np.less)
+    localMinima = find_peaks_cwt(-1*MI, cwt_widths)
+    localMinima = [localMinima]
     if method=="first_local_min":
         firstLocalMinIdx = localMinima[0][0]
-        to_return = firstLocalMinIdx
+        idx_to_return = firstLocalMinIdx
         
         #check that the smoothing hasn't moved the index of the local minimum 
         lowIdx = firstLocalMinIdx - smoothing_length
@@ -490,8 +504,8 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
             highIdx = len(MI)
 
         for j in np.arange(lowIdx,highIdx):
-            if MI[j] < MI[to_return]:
-                to_return = j
+            if MI[j] < MI[idx_to_return]:
+                idx_to_return = j
 
     elif method=="first_or_second_local_min":
         #print(localMinima[0])
@@ -503,7 +517,7 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
             else:
                 first_or_second = second_local_min
             #print("first_or_second is {0}".format(first_or_second))
-            to_return = first_or_second
+            idx_to_return = first_or_second
 
             #check that the smoothing hasn't moved the index of the local minimum 
             lowIdx = first_or_second - smoothing_length
@@ -516,15 +530,15 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
                 highIdx = len(MI)
 
             for j in np.arange(lowIdx,highIdx):
-                if MI[j] < MI[to_return]:
+                if MI[j] < MI[idx_to_return]:
                     #print(j)
-                    to_return = j
+                    idx_to_return = j
         except IndexError:
             print("something went wrong in FS86! returning global min of MI")
-            to_return = np.argmin(MI)
+            idx_to_return = np.argmin(MI)
 
     elif method=="global_min":
-        to_return = np.argmin(MI)
+        idx_to_return = np.argmin(MI)
         
     elif method=="local_min_stop_decreasing":
         try:
@@ -533,7 +547,7 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
                     break
             local_min_stop_decreasing_idx = localMinima[0][j]
 
-            to_return = local_min_stop_decreasing_idx
+            idx_to_return = local_min_stop_decreasing_idx
             #check that the smoothing hasn't moved the index of the local minimum 
             lowIdx = local_min_stop_decreasing_idx - smoothing_length
             highIdx = local_min_stop_decreasing_idx + smoothing_length
@@ -544,11 +558,11 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
                 highIdx = len(MI)
 
             for j in np.arange(lowIdx,highIdx):
-                if MI[j] < MI[to_return]:
-                    to_return = j
+                if MI[j] < MI[idx_to_return]:
+                    idx_to_return = j
         
         except UnboundLocalError: #what happens if there are no local minima! just return the global
-            to_return = np.argmin(MI)
+            idx_to_return = np.argmin(MI)
 
     elif method=="level_off_local_min":
         for j in range(len(localMinima[0])-1):
@@ -556,7 +570,7 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
                 break
 
         level_off_local_min = localMinima[0][j]
-        to_return = level_off_local_min
+        idx_to_return = level_off_local_min
 
         #check that the smoothing hasn't moved the index of the local minimum 
         lowIdx = level_off_local_min - smoothing_length
@@ -568,19 +582,19 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
             highIdx = len(MI)
 
         for j in np.arange(lowIdx,highIdx):
-            if MI[j] < MI[to_return]:
-                to_return = j
+            if MI[j] < MI[idx_to_return]:
+                idx_to_return = j
 
     if plot is True:
         fig, ax = plt.subplots(1,1,figsize=(8,6))
         ax.plot(MI,'b-')
-        ax.plot(smooth_MI,'g-')
-        ax.axvline(x=to_return,color='r')
+        #ax.plot(smooth_MI,'g-')
+        ax.axvline(x=idx_to_return,color='r')
         plt.show()
             
-        bin2D(timeSeries=timeSeries, tauIdx = to_return, plotTitle="tauIdx = {0}".format(to_return))
+        bin2D(timeSeries=timeSeries, tauIdx = idx_to_return, plotTitle="tauIdx = {0}".format(idx_to_return))
 
-    return MI, to_return
+    return MI, idx_to_return
 
 
 
