@@ -9,6 +9,7 @@ from scipy.stats import iqr
 from scipy.signal import argrelextrema, savgol_filter, correlate, find_peaks_cwt
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
+from pytisean import tiseano, tiseanio
 
 __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'transformed_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
 
@@ -636,9 +637,14 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     if delayMatrix_m.ndim == 1:
         delayMatrix_m = np.atleast_2d(delayMatrix_m).T
 
+    #print(np.shape(delayMatrix_m))
+    #print(np.shape(delayMatrix_mp1))
     nEntries_mp1 = np.shape(delayMatrix_mp1)[0]
-
-    index = NNDescent(delayMatrix_m[:nEntries_mp1], n_neighbors=10, metric="chebyshev")    
+    #print(np.shape(delayMatrix_m[:nEntries_mp1]))
+    #print(np.shape(delayMatrix_m[:nEntries_mp1])[0])
+    #print(delayMatrix_m[:nEntries_mp1])
+    #print(delayMatrix_m[:nEntries_mp1][0])
+    index = NNDescent(delayMatrix_m[:nEntries_mp1], n_neighbors=50, metric="chebyshev")    
     nnI = index.neighbor_graph[0]
     nnD = index.neighbor_graph[1] 
     return nnI, nnD
@@ -715,6 +721,7 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
     Estar = np.zeros((mMax), dtype=float)
     E2 = np.zeros((mMax-1),dtype=float)
     
+    #print("here")
     #E2[0] = 0.
     
     # E must range up to mMax+1 because E1, E2 calculations require m + 1
@@ -727,7 +734,8 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
             delayMat_mp1 = delayMatrix(timeSeries, tau, m+1)
 
             nEntries_mp1 = np.shape(delayMat_mp1)[0]
-        
+            
+
             # find indices of nearest neighbors--this is the slowest step so far, scales as n_datapoints^2
             start = time.time()
             nnIndices, nnDistances = nearestNeighborIndices(delayMat_m, delayMat_mp1)
@@ -735,7 +743,7 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
             #print(np.shape(nnDistances))
             end = time.time()
             
-            #print("time taken: {0}".format(end - start))
+            #print("time taken: {0} seconds".format(np.round(end - start),1))
             
             #print(np.shape(delayMat_m))
             #print(np.shape(delayMat_mp1))
@@ -748,9 +756,15 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
                 #print(nnDistances[i])
                 j = 0
                 #print("j is 0")
+                #print("here")
+                #print(np.shape(delayMat_mp1[i]))
+                #print(np.shape(delayMat_mp1[nnIndices[i,j]]))
                 numerator = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])
-                denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
-                #print(denominator)
+                #print("numerator yes")
+                #print(np.shape(delayMat_m[i]))
+                #print(np.shape(delayMat_m[nnIndices[i,j]]))
+                denominator = chebyshev(np.atleast_1d(delayMat_m[i]), np.atleast_1d(delayMat_m[nnIndices[i,j]]))
+                #print("denominator yes")
 
                 #if the distance is zero, take the next nearest neighbor
                 #if the "nearest neighbor" is the point itself, take the next nearest neighbor
@@ -759,7 +773,7 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
                 while denominator == 0. or nnIndices[i,j] == i:
                     j+=1
                     #print("j is {0}".format(j))
-                    denominator = chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+                    denominator = chebyshev(np.atleast_1d(delayMat_m[i]), np.atleast_1d(delayMat_m[nnIndices[i,j]]))
                     #print(denominator)
                 
                 #print("numerator ingredients")
@@ -772,7 +786,7 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
                 #print(delayMat_m[nnIndices[i,j]])
                 #print("denominator")
                 #print(chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]]))
-                a[i] = chebyshev(delayMat_mp1[i], delayMat_mp1[nnIndices[i,j]])/denominator #chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
+                a[i] = chebyshev(np.atleast_1d(delayMat_mp1[i]), delayMat_mp1[nnIndices[i,j]])/denominator #chebyshev(delayMat_m[i], delayMat_m[nnIndices[i,j]])
                 
                 #print("a[i]")
                 #print(a[i])
@@ -807,6 +821,12 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
     except IndexError:
         sat_m = None
 
+    # don't want to allow sat_m = 1
+    if sat_m == 1:
+        try:
+            sat_m = np.arange(len(E1_change))[E1_change < E1_change_cutoff][1] + 1
+        except IndexError:
+            sat_m = None
     #print(E1)
     #print(E1_change)
     #print(sat_m)
@@ -928,6 +948,25 @@ def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
             C2[rIdx] = (1./N)*C2sum
     
     return C0, C1, C2, nArr
+
+def d2_tisean(timeSeries,tau,m,thelier=0):
+    """
+    note that timeSeries must be normalized to values between 0 and 1 for
+    the d2 call to work correctly!
+    calulate the correlation dimension D2 with TISEAN (see documentation here: https://www.pks.mpg.de/tisean/Tisean_3.0.1/docs/docs_c/d2.html)
+    set flag -N = 0 to use all available pairs in the nearest neighbors calculation
+    """
+
+    d2_out, msg = tiseanio("d2",
+                           '-d',tau,
+                           '-M',"1,{0}".format(m),
+                           '-c',1,
+                           '-t',thelier,
+                           '-N',0,
+                           '-V',0,
+                           data=timeSeries)
+
+    return d2_out
 
 def powerLawSlopeDistribution(rArr, nArr):
     N = np.shape(nArr)[0]
