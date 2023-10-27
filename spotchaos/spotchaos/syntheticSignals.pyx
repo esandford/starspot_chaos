@@ -9,6 +9,7 @@ from scipy.stats import iqr
 from scipy.signal import argrelextrema, savgol_filter, correlate, find_peaks_cwt
 from scipy.spatial.distance import chebyshev
 from pynndescent import NNDescent
+from sklearn.neighbors import BallTree
 from pytisean import tiseano, tiseanio
 
 __all__ = ['plotTimeSeries', 'KB88', 'Rossler_FPs', 'Rossler_vel', 'transformed_Rossler_vel','Lorenz_FPs','Lorenz_vel','bin2D','calc_MI','shan_entropy','optimal_Nbins','moving_average','FS86','estimateQuasiPeriod','delayMatrix','nearestNeighborIndices','cao97','localDensity','Cq','direct_C2']
@@ -637,59 +638,28 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     if delayMatrix_m.ndim == 1:
         delayMatrix_m = np.atleast_2d(delayMatrix_m).T
 
-    #print(np.shape(delayMatrix_m))
-    #print(np.shape(delayMatrix_mp1))
     nEntries_mp1 = np.shape(delayMatrix_mp1)[0]
-    #print(np.shape(delayMatrix_m[:nEntries_mp1]))
-    #print(np.shape(delayMatrix_m[:nEntries_mp1])[0])
-    #print(delayMatrix_m[:nEntries_mp1])
-    #print(delayMatrix_m[:nEntries_mp1][0])
+    
+    balltree_start = time.time()
+    #construct sklearn BallTree
+    ball_tree = BallTree(delayMatrix_m[:nEntries_mp1], leaf_size=10, metric='chebyshev')
+    #query tree for 50 nearest neighbors of each point
+    dist, ind = ball_tree.query(delayMatrix_m[:nEntries_mp1], k=50)
+    balltree_end = time.time()
+    """
+    
+    pynn_start = time.time()
     index = NNDescent(delayMatrix_m[:nEntries_mp1], n_neighbors=50, metric="chebyshev")    
     nnI = index.neighbor_graph[0]
     nnD = index.neighbor_graph[1] 
-    return nnI, nnD
-'''
-cpdef nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
-    """
-    Get the nearest neighbor indices  n(i, m) as defined in Cao 1997 equation 1
-    
-    Inputs:
-    delayMatrix_m : delay matrix of a time series in embedding dimension m
-    delayMatrix_mp1 : delay matrix of a time series in embedding dimension m + 1
-    
-    Returns:
-    nnI : 1D np.array, length ( N - m*tau )
-    """
-    cdef:
-        int nEntries, nEntries_mp1, m, i, j, nn
-        double compDist, chebyshevDist
+    pynn_end = time.time()
 
-    if delayMatrix_m.ndim == 1:
-        nEntries = len(delayMatrix_m)
-        m = 1
-    else:
-        nEntries, m = np.shape(np.atleast_2d(delayMatrix_m))
-    
-    nEntries_mp1 = np.shape(delayMatrix_mp1)[0]
-    
-    nnI = np.zeros((nEntries_mp1),dtype=int)
-    
-    for i in range(nEntries_mp1):
-        nn = (i+1) % nEntries_mp1
-        compDist = chebyshev(delayMatrix_m[i], delayMatrix_m[nn])
-        for j in range(nEntries_mp1):
-            if j == i:
-                pass
-            else:
-                chebyshevDist = chebyshev(delayMatrix_m[i],delayMatrix_m[j])
-                if chebyshevDist < compDist:
-                    compDist = chebyshevDist
-                    nn = j
-                    
-        nnI[i] = nn
-    return nnI
+    print("time for balltree is {0} sec".format(balltree_end - balltree_start))
+    print("time for pynndesc is {0} sec".format(pynn_end - pynn_start))
+    """
+    return ind, dist
 
-'''
+
 cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
     """
     Calculate arrays E1(m), E2(m) as defined in Cao 1997 equations 3 and 5, respectively. E1 should saturate if signal is
@@ -833,14 +803,13 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
     return E1, E2, sat_m
 
 
-def localDensity(rArr, delayMat, nNeighbors=200, divprob=1.0, pdm=1.5):
+def localDensity(rArr, delayMat):
     """
     Local density estimation of Kurths & Herzel 1987 equation 5
     
     Inputs:
     rArr : 1D np.array , array of r values (distances between points) to test
     delayMat : delay matrix constructed from time series
-    nNeighbors : int, number of nearest neighbors for PyNNDescent to index
     
     Outputs:
     nArr : np.array of shape (N, len(rArr)), where N is the first dimension of the delay matrix
@@ -852,7 +821,8 @@ def localDensity(rArr, delayMat, nNeighbors=200, divprob=1.0, pdm=1.5):
 
     if delayMat.ndim == 1:
         delayMat = np.atleast_2d(delayMat).T
-
+    '''    
+    pynn_start = time.time()
     index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors, diversify_prob=divprob, pruning_degree_multiplier=pdm)    
     neighborDistances = index.neighbor_graph[1]
     
@@ -867,7 +837,8 @@ def localDensity(rArr, delayMat, nNeighbors=200, divprob=1.0, pdm=1.5):
                 #break
             else:
                 nArr[i, rIdx] = withinSphere
-
+    pynn_end = time.time()
+    '''
     '''
     # this is so slow........
     for i in range(N):
@@ -884,11 +855,27 @@ def localDensity(rArr, delayMat, nNeighbors=200, divprob=1.0, pdm=1.5):
                     else:
                         nArr[i, rIdx] += 1.
     '''
+    
+    ball_start = time.time()
+    nArr = np.zeros((N, len(rArr)))
+
+    ball_tree = BallTree(delayMat, leaf_size=10, metric='euclidean')
+
+    for rIdx, r in enumerate(rArr):
+        ball_tree_pairs = ball_tree.query_radius(delayMat, r=r, count_only=False)
+        for i in range(N):
+            # number of neighbor points within radius r found, eliminating self-counting and double-counting
+            nArr[i, rIdx] = len(ball_tree_pairs[i]) - 1
+    ball_end = time.time()
+
+    #print("pynn time is {0} seconds".format(pynn_end - pynn_start))
+    #print("ball time is {0} seconds".format(ball_end - ball_start))
+
     nArr = (1./(N)) * nArr
 
-    return nArr, neighborDistances
+    return nArr
 
-def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
+def Cq(rArr, timeSeries, tau, m):
     """
     Calculate C0, C1, and C2 as defined in Kurths & Herzel 1987.
     
@@ -898,8 +885,6 @@ def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
     tau : int, delay time in units of time series cadence
     m : int, embedding dimension
     nNeighbors : int, number of nearest neighbors for PyNNDescent to index
-    divprob : float between 0.0 and 1.1, the diversify_prob parameter for PyNNDescent
-    pdm : float, the pruning_degree_multiplier parameter for PyNNDescent
 
     Outputs:
     C0 : np.array (like rArr)
@@ -929,7 +914,7 @@ def Cq(rArr, timeSeries, tau, m, divprob=1.0, pdm=1.5):
         else:
             nNeighbors = 5000
 
-        nArr, neighborDistances = localDensity(rArr, delayMat, nNeighbors=nNeighbors, divprob=divprob, pdm=pdm) # shape ((N, len(rArr))
+        nArr = localDensity(rArr, delayMat) # shape ((N, len(rArr))
         C0 = np.zeros_like(rArr) # capacity or fractal dimension
         C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
         C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
@@ -1015,20 +1000,18 @@ def direct_C2(rArr, timeSeries, tau, m, nNeighbors):
     if delayMat.ndim == 1:
         delayMat = np.atleast_2d(delayMat).T
 
-    index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors)    
-    neighborDistances = index.neighbor_graph[1]
+    #index = NNDescent(delayMat, metric="euclidean", n_neighbors=nNeighbors)    
+    #neighborDistances = index.neighbor_graph[1]
 
     C2 = np.zeros_like(rArr)
-    
-    for i in range(N):
-        for rIdx, r in enumerate(rArr):
-            withinSphere = len(neighborDistances[i][neighborDistances[i] < r])
-            if int(withinSphere) == nNeighbors:
-                #print("Warning! PyNNDescent hasn't indexed enough neighbors for accurate calculation at r = {0}".format(r))
-                C2[rIdx] = np.NaN
-                #break
-            else:
-                C2[rIdx] += withinSphere
+
+    ball_tree = BallTree(delayMat, leaf_size=10, metric='euclidean')
+
+    for rIdx, r in enumerate(rArr):
+        ball_tree_pairs = ball_tree.query_radius(delayMat, r=r, count_only=False)
+        #number of neighbor points within radius r found, 
+        #eliminating self-counting and double-counting
+        C2[rIdx] = int((np.sum(ball_tree_pairs)-N)/2)
     
     C2 = (1./N**2) * C2
     
