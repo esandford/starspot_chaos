@@ -343,7 +343,7 @@ def moving_average(a, n=3) :
 
 
 
-def estimateQuasiPeriod(time, timeSeries, method="power", cwt_widths=None, plot=False):
+def estimateQuasiPeriod(time, timeSeries, method="power", cwt_widths=np.arange(5,100,5), plot=False, return_MI=False):
     """
     if method=="power":
         Take the quasi-period of the time series as 1/(frequency of max power), in units of time series cadence.
@@ -378,8 +378,8 @@ def estimateQuasiPeriod(time, timeSeries, method="power", cwt_widths=None, plot=
         for i,tau in enumerate(trialDelayIndices):
             MI[i] = calc_MI(timeSeries[:-(tau+1)], timeSeries[(tau+1):],Xbins=optimal_Nbins(timeSeries[:-(tau+1)]), Ybins = optimal_Nbins(timeSeries[(tau+1):]))
 
-        minIdx = int(0.9*qp_idx)
-        maxIdx = int(1.1*qp_idx)
+        minIdx = int(0.75*qp_idx)
+        maxIdx = int(1.25*qp_idx)
         
         if maxIdx > len(timeSeries):
             maxIdx = len(timeSeries)
@@ -397,7 +397,7 @@ def estimateQuasiPeriod(time, timeSeries, method="power", cwt_widths=None, plot=
     elif method == "localMaxSep":
         localMaxima = find_peaks_cwt(timeSeries, widths = cwt_widths)
         localMinima = find_peaks_cwt(-timeSeries, widths = cwt_widths)
-
+        
         localMinimaSep = time[localMinima[1:]] - time[localMinima[:-1]]
         localMaximaSep = time[localMaxima[1:]] - time[localMaxima[:-1]]
 
@@ -442,8 +442,10 @@ def estimateQuasiPeriod(time, timeSeries, method="power", cwt_widths=None, plot=
             #        ax.axvline(np.arange(len(ac_zeros))[ac_zeros==1][i])
             #ax.axhline(0)
                 
-
-    return qp_idx
+    if return_MI is True:
+        return qp_idx, MI
+    else:
+        return qp_idx
 
 
 def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min", cwt_widths = np.arange(5,100,5), level_off_criterion=0.05, plot=False):
@@ -466,7 +468,7 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
     
     """
     qp = estimateQuasiPeriod(time, timeSeries, method=QPmethod, cwt_widths=cwt_widths, plot=False)
-    
+
     if qp < 10:
         print("short qp")
         qp = 10
@@ -490,7 +492,9 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
 
     #smooth_MI = savgol_filter(MI, smoothing_length, 2)
     #localMinima = argrelextrema(smooth_MI, np.less)
-    localMinima = find_peaks_cwt(-1*MI, cwt_widths)
+    cwt_widths_taufinding = np.arange(1,int(qp/2))
+    
+    localMinima = find_peaks_cwt(-1*MI, cwt_widths_taufinding)
     localMinima = [localMinima]
     if method=="first_local_min":
         firstLocalMinIdx = localMinima[0][0]
@@ -596,7 +600,7 @@ def FS86(time, timeSeries, QPmethod="power", method="first_or_second_local_min",
             
         bin2D(timeSeries=timeSeries, tauIdx = idx_to_return, plotTitle="tauIdx = {0}".format(idx_to_return))
 
-    return MI, idx_to_return
+    return MI, idx_to_return, qp
 
 
 
@@ -660,7 +664,7 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     return ind, dist
 
 
-cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
+cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.1):
     """
     Calculate arrays E1(m), E2(m) as defined in Cao 1997 equations 3 and 5, respectively. E1 should saturate if signal is
     coming from an attractor. E2, meanwhile, should always be equal to 1 if the time series is stochastic, regardless of m; if
@@ -683,22 +687,22 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
 
     N = len(timeSeries)
     # mMax - 1 because we're not bothering with m = 1
-    E = np.zeros((mMax), dtype=float)
-    E1 = np.zeros((mMax - 1),dtype=float)
-    E1_change = np.zeros((mMax-2),dtype=float)
+    E = np.zeros((mMax - 1), dtype=float)
+    E1 = np.zeros((mMax - 2),dtype=float)
+    E1_change = np.zeros((mMax-3),dtype=float)
 
     #E1[0] = 0.
-    Estar = np.zeros((mMax), dtype=float)
-    E2 = np.zeros((mMax-1),dtype=float)
+    Estar = np.zeros((mMax - 1), dtype=float)
+    E2 = np.zeros((mMax-2),dtype=float)
     
     #print("here")
     #E2[0] = 0.
     
     # E must range up to mMax+1 because E1, E2 calculations require m + 1
-    for m in range(1,mMax+1):
+    for m in range(2,mMax+1):
         if N - (m*tau) <= 0:
-            E[m-1] = np.NaN
-            Estar[m-1] = np.NaN
+            E[m-2] = np.NaN
+            Estar[m-2] = np.NaN
         else:
             delayMat_m = delayMatrix(timeSeries, tau, m)
             delayMat_mp1 = delayMatrix(timeSeries, tau, m+1)
@@ -765,45 +769,41 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.05):
             #ax.hist(a)
             #plt.show()
             #print(np.mean(a))
-            E[m-1] = np.mean(a)
+            E[m-2] = np.mean(a)
             
             # calculate equation 4 and populate Estar[m]
             b = np.zeros(nEntries_mp1, dtype=float)
             for i in range(nEntries_mp1):
                 b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i,j] + m*tau])
-            Estar[m-1] = np.mean(b)
+            Estar[m-2] = np.mean(b)
     
     #print(E)
     #print(Estar)
     
-    for m in range(0,mMax-1):
+    for m in range(0,mMax-2):
         E1[m] = E[m+1]/E[m]
         E2[m] = Estar[m+1]/Estar[m]
     #print(E1)
     #print(E2)
 
-    for m in range(0,mMax-2):
-        #E1_change[m] = np.abs(E1[m+1] - E1[m])
-        E1_change[m] = E1[m+1] - E1[m]
+    for m in range(0,mMax-3):
+        E1_change[m] = np.abs(E1[m+1] - E1[m])
+        #E1_change[m] = E1[m+1] - E1[m]
 
     try:
-        sat_m = np.arange(len(E1_change))[E1_change < E1_change_cutoff][0] + 1
+        not_change = np.arange(len(E1_change))[E1_change < E1_change_cutoff] + 2
+        sat_m = not_change[0]
     except IndexError:
+        not_change = []
         sat_m = None
 
-    # don't want to allow sat_m = 1
-    if sat_m == 1:
-        try:
-            sat_m = np.arange(len(E1_change))[E1_change < E1_change_cutoff][1] + 1
-        except IndexError:
-            sat_m = None
     #print(E1)
     #print(E1_change)
     #print(sat_m)
-    return E1, E2, sat_m
+    return E1, E2, sat_m, not_change
 
 
-def localDensity(rArr, delayMat):
+def localDensity(rArr, delayMat, theilerWindow):
     """
     Local density estimation of Kurths & Herzel 1987 equation 5
     
@@ -864,18 +864,19 @@ def localDensity(rArr, delayMat):
     for rIdx, r in enumerate(rArr):
         ball_tree_pairs = ball_tree.query_radius(delayMat, r=r, count_only=False)
         for i in range(N):
-            # number of neighbor points within radius r found, eliminating self-counting and double-counting
-            nArr[i, rIdx] = len(ball_tree_pairs[i]) - 1
+            # number of neighbor points within radius r found, eliminating self-counting
+            # and pairs within the Theiler window
+            thisPointNeighborIdxs = ball_tree_pairs[i]
+            outsideWindow = (thisPointNeighborIdxs < (i-theilerWindow)) | (thisPointNeighborIdxs > (i+theilerWindow))
+            nArr[i, rIdx] = len(thisPointNeighborIdxs[outsideWindow])
     ball_end = time.time()
 
     #print("pynn time is {0} seconds".format(pynn_end - pynn_start))
     #print("ball time is {0} seconds".format(ball_end - ball_start))
 
-    nArr = (1./(N)) * nArr
-
     return nArr
 
-def Cq(rArr, timeSeries, tau, m):
+def Cq(rArr, timeSeries, tau, m, theilerWindow=0):
     """
     Calculate C0, C1, and C2 as defined in Kurths & Herzel 1987.
     
@@ -885,6 +886,8 @@ def Cq(rArr, timeSeries, tau, m):
     tau : int, delay time in units of time series cadence
     m : int, embedding dimension
     nNeighbors : int, number of nearest neighbors for PyNNDescent to index
+
+    theilerWindow = 0: points are still not compared to themselves, so it's okay
 
     Outputs:
     C0 : np.array (like rArr)
@@ -914,39 +917,62 @@ def Cq(rArr, timeSeries, tau, m):
         else:
             nNeighbors = 5000
 
-        nArr = localDensity(rArr, delayMat) # shape ((N, len(rArr))
-        C0 = np.zeros_like(rArr) # capacity or fractal dimension
-        C1 = np.zeros_like(rArr) # information dimension or pointwise dimension
-        C2 = np.zeros_like(rArr) # correlation exponent, same quantity as Grassberger & Procaccia 1983
+        # note, returned nArr is no longer normalized by anything!
+        nArr = localDensity(rArr, delayMat, theilerWindow) # shape ((N, len(rArr))
+        C0 = np.zeros_like(rArr) # capacity 
+        C1 = np.zeros_like(rArr) # information dimension 
+        C2 = np.zeros_like(rArr) # correlation dimension, same quantity as Grassberger & Procaccia 1983
+
+        vArr = (rArr**3 / rArr[-1]**3)
+        C0unc = np.zeros_like(rArr) # uncertainty on capacity
+        C1unc = np.zeros_like(rArr) # uncertainty on information dimension
+        C2unc = np.zeros_like(rArr) # uncertainty on correlation dimension
+
+        Npairs = (N * (N - 1 - 2*theilerWindow))
                         
         for rIdx, r in enumerate(rArr):
             #C0 is the harmonic mean of nArr, per Kurths & Herzel 1987
-            C0sum = (1./N) * np.sum( (1./nArr[:,rIdx]) )
+            C0sum = (1./Npairs) * np.sum( (1./nArr[:,rIdx]) )
             C0[rIdx] = 1./C0sum
-            
+
+            dC0_dNneari = (1./Npairs)*((C0[rIdx]/nArr[:,rIdx])**2)
+            C0uncsum = np.sum((dC0_dNneari)**2 * N * vArr[rIdx])
+            C0unc[rIdx] = np.sqrt(C0uncsum)
+
             #C1 is the geometric mean of nArr
             C1sum = np.sum(np.log(nArr[:,rIdx]))
-            C1[rIdx] = np.exp((1./N)*C1sum)
+            C1[rIdx] = np.exp((1./Npairs)*C1sum)
+
+            dC1_dNneari = (1./Npairs)*(C1[rIdx]/nArr[:,rIdx])
+            C1uncsum = np.sum((dC1_dNneari)**2 * N * vArr[rIdx])
+            C1unc[rIdx] = np.sqrt(C1uncsum)
 
             #C2 is the arithmetic mean of nArr
             C2sum = np.sum(nArr[:,rIdx])
-            C2[rIdx] = (1./N)*C2sum
+            C2[rIdx] = (1./Npairs)*C2sum
+            C2unc[rIdx] = np.sqrt( (1./(N - 1 - 2*theilerWindow)) * vArr[rIdx] )
     
     return C0, C1, C2, nArr
 
-def d2_tisean(timeSeries,tau,m,thelier=0):
+def d2_tisean(timeSeries,tau,mMax,rArr,thelier=0):
     """
     note that timeSeries must be normalized to values between 0 and 1 for
     the d2 call to work correctly!
     calulate the correlation dimension D2 with TISEAN (see documentation here: https://www.pks.mpg.de/tisean/Tisean_3.0.1/docs/docs_c/d2.html)
     set flag -N = 0 to use all available pairs in the nearest neighbors calculation
     """
+    minLengthScale = rArr[0]
+    maxLengthScale = rArr[-1]
+    numEpsValues = len(rArr)
 
     d2_out, msg = tiseanio("d2",
                            '-d',tau,
-                           '-M',"1,{0}".format(m),
+                           '-M',"1,{0}".format(mMax),
                            '-c',1,
                            '-t',thelier,
+                           '-R',maxLengthScale,
+                           '-r',minLengthScale,
+                           '-#',numEpsValues,
                            '-N',0,
                            '-V',0,
                            data=timeSeries)
@@ -966,7 +992,10 @@ def powerLawSlopeDistribution(rArr, nArr):
     anyNans = [np.any(~np.isfinite(nArr[:,i])) for i in range(len(rArr))]
     anyNans = np.array(anyNans)
     nansIdxs = np.arange(len(rArr))[anyNans]
-    lastGood = nansIdxs[0]
+    try:
+        lastGood = nansIdxs[0]
+    except IndexError:
+        lastGood = -1
 
     params_dist = np.zeros((N,2))
     params_unc_dist = np.zeros((N,2,2))
@@ -981,6 +1010,8 @@ def powerLawSlopeDistribution(rArr, nArr):
 
 def direct_C2(rArr, timeSeries, tau, m, nNeighbors):
     """
+    note that it's not trivial to edit this one to accommodate a Theiler window
+    
     Calculate the correlation integral C2 directly according to Grassberger & Procaccia 1983. This really should
     not be different from the above, so hopefully should help with debugging.
     
@@ -1096,7 +1127,10 @@ def fitLinearRegime(rArr, nArr, C):
     anyNans = [np.any(~np.isfinite(nArr[:,i])) for i in range(len(rArr))]
     anyNans = np.array(anyNans)
     nansIdxs = np.arange(len(rArr))[anyNans]
-    lastGood = nansIdxs[0]
+    try:
+        lastGood = nansIdxs[0]
+    except IndexError:
+        lastGood = -1
     
     """
     fig, axes = plt.subplots(1,2,figsize=(16,6))
