@@ -21,7 +21,7 @@
 <script>
 var margin = {top: 10, right: 10, bottom: 10, left: 10},
     width = 600 - margin.left - margin.right,
-    height = 600 - margin.top - margin.bottom;
+    height = 610 - margin.top - margin.bottom;
 
 var rho = 28.0,
     sigma = 10.0,
@@ -68,14 +68,17 @@ var track = svg.append("path")
     .attr("class", "track");
 
 // set the gradient
-svg.append("linearGradient")
+//svg.append("linearGradient")
+svg.append("radialGradient")
   .attr("id", "line-gradient")
-  .attr("x1", "10%").attr("x1", "90%")
-  .attr("y1", "10%").attr("y2", "90%")
+  //.attr("x1", "10%").attr("x2", "10%")
+  //.attr("y1", "10%").attr("y2", "90%")
+  .attr("cx", "0.5").attr("cy", "0.99").attr("r", "0.5")
+  //.attr("fx", "0.5").attr("fy", "0.99")
 .selectAll("stop")
   .data([
-    {offset: "0%", color: "#b2182b"},
-    {offset: "100%", color: "#2166ac"}
+    {offset: "0%", color: "#000000"},//"#FFD106"},//"#df2935"},
+    {offset: "100%", color: "#000000"},//"#FFD106"}//"#3772ff"}
   ])
 .enter().append("stop")
   .attr("offset", function(d) { return d.offset; })
@@ -123,14 +126,28 @@ function drawTransformedRossler(xt, yt, zt) {
   circle.attr("transform", function(d) { return "translate(" + data[data.length - 1] + ")"; });
 }
 
+function sleep(milliseconds) {
+  const date = Date.now();
+  let currentDate = null;
+  do {
+    currentDate = Date.now();
+  } while (currentDate - date < milliseconds);
+}
+
+
+
+sleep(10000);
+
 var interval = setInterval(function() {
   iter++;
   if (iter >= max_iter)
     clearInterval(interval);
-  //lorenz(drawLorenz);
+  lorenz(drawLorenz);
   //rossler(drawRossler);
-  transformedRossler(drawTransformedRossler);
-}, 10);
+  //transformedRossler(drawTransformedRossler);
+}, 30);
+
+
 
 </script> 
 
