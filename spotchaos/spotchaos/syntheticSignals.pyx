@@ -664,7 +664,7 @@ def nearestNeighborIndices(delayMatrix_m, delayMatrix_mp1):
     return ind, dist
 
 
-cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.1):
+cpdef cao97(timeSeries, int tau, int mMax):
     """
     Calculate arrays E1(m), E2(m) as defined in Cao 1997 equations 3 and 5, respectively. E1 should saturate if signal is
     coming from an attractor. E2, meanwhile, should always be equal to 1 if the time series is stochastic, regardless of m; if
@@ -682,14 +682,13 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.1):
     
     """
     cdef:
-        int m, i, N
+        int m, i, j, N
         double start, end
 
     N = len(timeSeries)
     # mMax - 1 because we're not bothering with m = 1
     E = np.zeros((mMax - 1), dtype=float)
     E1 = np.zeros((mMax - 2),dtype=float)
-    E1_change = np.zeros((mMax-3),dtype=float)
 
     #E1[0] = 0.
     Estar = np.zeros((mMax - 1), dtype=float)
@@ -777,30 +776,11 @@ cpdef cao97(timeSeries, int tau, int mMax, float E1_change_cutoff=0.1):
                 b[i] = np.abs(timeSeries[i + m*tau] - timeSeries[nnIndices[i,j] + m*tau])
             Estar[m-2] = np.mean(b)
     
-    #print(E)
-    #print(Estar)
+    for j in range(0,mMax-2):
+        E1[j] = E[j+1]/E[j]
+        E2[j] = Estar[j+1]/Estar[j]
     
-    for m in range(0,mMax-2):
-        E1[m] = E[m+1]/E[m]
-        E2[m] = Estar[m+1]/Estar[m]
-    #print(E1)
-    #print(E2)
-
-    for m in range(0,mMax-3):
-        E1_change[m] = np.abs(E1[m+1] - E1[m])
-        #E1_change[m] = E1[m+1] - E1[m]
-
-    try:
-        not_change = np.arange(len(E1_change))[E1_change < E1_change_cutoff] + 2
-        sat_m = not_change[0]
-    except IndexError:
-        not_change = []
-        sat_m = None
-
-    #print(E1)
-    #print(E1_change)
-    #print(sat_m)
-    return E1, E2, sat_m, not_change
+    return E1, E2
 
 
 def localDensity(rArr, delayMat, theilerWindow):
