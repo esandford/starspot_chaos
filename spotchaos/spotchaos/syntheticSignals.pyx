@@ -932,7 +932,7 @@ def Cq(rArr, timeSeries, tau, m, theilerWindow=0):
             C2[rIdx] = (1./Npairs)*C2sum
             C2unc[rIdx] = np.sqrt( (1./(N - 1 - 2*theilerWindow)) * vArr[rIdx] )
     
-    return C0, C1, C2#, nArr
+    return C0, C1, C2, C0unc, C1unc, C2unc
 
 def d2_tisean(timeSeries,tau,mMax,rArr,thelier=0):
     """
